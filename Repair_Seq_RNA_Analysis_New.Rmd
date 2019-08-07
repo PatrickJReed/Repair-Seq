@@ -1,0 +1,501 @@
+---
+title: "Repair_Seq_Analysis"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+library("DiffBind")
+library("ChIPpeakAnno")
+library("ChIPseeker")
+library("pqsfinder")
+library("motifRG")
+library("BSgenome.Hsapiens.UCSC.hg38")
+library("EnsDb.Hsapiens.v86")
+library("TxDb.Hsapiens.UCSC.hg38.knownGene")
+library("clusterProfiler")
+library("ReactomePA")
+library("org.Hs.eg.db")
+library("viridis")
+library("ggplot2")
+load("~/RepairSeq/dba_repair_1D4D7D/dbaset.rda")
+
+
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+anno86 <- annoGR(EnsDb.Hsapiens.v86)
+
+```
+
+
+
+```{r}
+## Condtion based comparison to define peaks common to 1D 4D and 7D
+dbaset_1D4D7D <- dba.contrast(dbaset, categories=DBA_CONDITION)  
+dbaset_1D4D7D <- dba.analyze(dbaset_1D4D7D, method=DBA_DESEQ2)
+```
+
+```{r}
+#1D vs 4D
+dbaset_1Dvs4D <- dba.report(dbaset_1D4D7D, contrast=1, th=1, bUsePval=TRUE)
+dba_1D4D_Common <- dbaset_1Dvs4D[dbaset_1Dvs4D$`p-value` > .05]
+#1D vs 7D
+dbaset_1Dvs7D <- dba.report(dbaset_1D4D7D, contrast=2, th=1, bUsePval=TRUE)
+dba_1D7D_Common <- dbaset_1Dvs7D[dbaset_1Dvs7D$`p-value` > .05]
+#4D vs 7D
+dbaset_4Dvs7D <- dba.report(dbaset_1D4D7D, contrast=3, th=1, bUsePval=TRUE)
+dba_4D7D_Common <- dbaset_4Dvs7D[dbaset_4Dvs7D$`p-value` > .05]
+
+dbaset_1D4D7D_Common_tmp <- intersect(dba_1D4D_Common, dba_1D7D_Common, ignore.strand=TRUE)
+dbaset_1D4D7D_Common <- intersect(dbaset_1D4D7D_Common_tmp, dba_4D7D_Common, ignore.strand=TRUE)
+
+pdf("1D4D7D_Common_RepairSeq_Peak_Figs.pdf")
+peakAnno_Common <- annotatePeak(dbaset_1D4D7D_Common, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+plotAnnoPie(peakAnno_Common) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+upsetplot(peakAnno_Common, vennpie=FALSE) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+vennpie(peakAnno_Common) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+gene <- seq2gene(dbaset_1D4D7D_Common, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+dotplot(ego) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
+
+```{r}
+makeVennDiagram(list(dba_1D4D_Common, dba_1D7D_Common, dba_4D7D_Common), NameOfPeaks=c("Common_1D4D", "Common_1D7D","Common_4D7D"))
+
+```
+
+```{r}
+peaksWithSequences <- getAllPeakSequence(dbaset_1D4D7D_Common, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences, "RepairSeq_CommonPeaks.fa")
+
+```
+
+```{r}
+cnetplot(ego, categorySize="pvalue", foldChange=gene)
+```
+
+```{r}
+#1 Day Specific Peak Analysis
+dbaset_1D_Specific <- dba.contrast(dbaset, dbaset$masks$`1dEdU`, bNot = TRUE)
+dbaset_1D_Specific <- dba.analyze(dbaset_1D_Specific, method=DBA_DESEQ2)
+dba_1D_report <- dba.report(dbaset_1D_Specific, th=.05, bUsePval=TRUE, fold=2)
+peakAnno_1D <- annotatePeak(dba_1D_report[dba_1D_report$Fold >2], tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+pdf("1D_Specific_RepairSeq_Peak_Figs.pdf")
+plotAnnoPie(peakAnno_1D) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+upsetplot(peakAnno_1D, vennpie=FALSE) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+vennpie(peakAnno_1D) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+gene <- seq2gene(dba_1D_report[dba_1D_report$Fold >2], tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+dotplot(ego) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
+
+
+
+```{r}
+#4 day speciifc peak analysis
+dbaset_4D_Specific <- dba.contrast(dbaset, dbaset$masks$`4dEdU`, bNot = TRUE)
+dbaset_4D_Specific <- dba.analyze(dbaset_4D_Specific, method=DBA_DESEQ2)
+dba_4D_report <- dba.report(dbaset_4D_Specific, th=.05, bUsePval=TRUE, fold=2)
+peakAnno_4D <- annotatePeak(dba_4D_report[dba_4D_report$Fold >2], tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+plotAnnoPie(peakAnno_4D) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+upsetplot(peakAnno_4D, vennpie=FALSE) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+gene <- seq2gene(dba_4D_report[dba_4D_report$Fold >2], tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+dotplot(ego) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+#7 day specific peak analysis
+dbaset_7D_Specific <- dba.contrast(dbaset, dbaset$masks$`7dEdU`, bNot = TRUE)
+dbaset_7D_Specific <- dba.analyze(dbaset_7D_Specific, method=DBA_DESEQ2)
+dba_7D_report <- dba.report(dbaset_7D_Specific, th=.05, bUsePval=TRUE, fold=2)
+peakAnno_7D <- annotatePeak(dba_7D_report[dba_7D_report$Fold >2], tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+plotAnnoPie(peakAnno_7D) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+upsetplot(peakAnno_7D, vennpie=FALSE) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+gene <- seq2gene(dba_7D_report[dba_7D_report$Fold >2], tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+dotplot(ego) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+#4Day 7Day Specific Peak Analysis
+#dbaset_1D_Specific <- dba.contrast(dbaset, dbaset$masks$`1dEdU`, bNot = TRUE)
+#dbaset_1D_Specific <- dba.analyze(dbaset_1D_Specific, method=DBA_DESEQ2)
+dba_1D_report <- dba.report(dbaset_1D_Specific, th=.05, bUsePval=TRUE, fold=2)
+peakAnno_4D7D <- annotatePeak(dba_1D_report[dba_1D_report$Fold <2], tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+pdf("4D7D_Specific_RepairSeq_Peak_Figs.pdf")
+plotAnnoPie(peakAnno_4D7D) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+upsetplot(peakAnno_4D7D, vennpie=FALSE) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+vennpie(peakAnno_4D7D) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+gene <- seq2gene(dba_1D_report[dba_1D_report$Fold <2], tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+dotplot(ego) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
+
+```{r}
+#1D 4D 7D Pairwise corelations
+
+df_1dvs4d <- as.data.frame(dbaset_1Dvs4D)
+df_1dvs7d <- as.data.frame(dbaset_1Dvs7D)
+df_4dvs7d <- as.data.frame(dbaset_4Dvs7D)
+my.formula <- y ~ x
+pdf("1D4D7D_RepairSeq_correlation_scatter.pdf")
+ggplot(df_1dvs4d, aes(x=Conc_1dEdU, y=Conc_4dEdU)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE)         
+
+ggplot(df_1dvs7d, aes(x=Conc_1dEdU, y=Conc_7dEdU)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) 
+
+ggplot(df_4dvs7d, aes(x=Conc_4dEdU, y=Conc_7dEdU)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) 
+dev.off()
+```
+
+```{r}
+ggplot(as.data.frame(dba_1D4D7D_Peaks)) + geom_point(size = 1, aes(x=dba_1D4D7D_Peaks$RPKM, y=dba_1D4D7D_Peaks$Score))
+ggplot(as.data.frame(dba_1D4D7D_Peaks)) + geom_point(size = 1, aes(x=dba_1D4D7D_Peaks$Reads, y=dba_1D4D7D_Peaks$Score))
+ggplot(as.data.frame(dba_1D4D7D_Peaks)) + geom_point(size = 1, aes(x=dba_1D4D7D_Peaks$cRPKM, y=dba_1D4D7D_Peaks$Score))
+ggplot(as.data.frame(dba_1D4D7D_Peaks)) + geom_point(size = 1, aes(x=dba_1D4D7D_Peaks$cReads, y=dba_1D4D7D_Peaks$Score))
+ggplot(as.data.frame(X)) + geom_point(size = 1, aes(x=X$Reads, y=X$ScoreNew))
+
+```
+
+
+```{r}
+
+setwd("~/RepairSeq/dba_repair_1D4D7D/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+gr <- makeGRangesFromDataFrame(as.data.frame(dbaset$peaks),keep.extra.columns = TRUE)  ##Convert Diffbind object to GRanges object
+gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
+gr <- dropSeqlevels(gr,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peakList <- lapply(files, readPeakFile)
+peakList_Standard <- lapply(peakList, keepStandardChromosomes, pruning.mode="coarse")
+peakList_Autosome <- lapply(peakList_Standard, dropSeqlevels, c("chrX","chrY"), pruning.mode="coarse")
+peakAnnoList <- lapply(peakList_Autosome, annotatePeak, TxDb=txdb,tssRegion=c(-3000, 3000), verbose=TRUE)
+pdf("1D4D7D_FeatureDistribution.pdf") 
+plotAnnoBar(peakAnnoList) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off() 
+```
+
+```{r}
+
+```
+
+
+```{r}
+peakAnno <- annotatePeak(gr_full, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+plotAnnoBar(peakAnno) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+
+```{r}
+plotAnnoBar(gr) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+pdf("1D4D7D_UpsetPlot.pdf", width=14) 
+upsetplot(peakAnno, vennpie=TRUE) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
+
+```{r}
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+gene <- seq2gene(gr_auto, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+```
+
+```{r}
+pdf("1D4D7D_GO_TermEnrichment.pdf") 
+dotplot(ego) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+setwd("~/RepairSeq/dba_samples_AllRepair/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakList <- lapply(files, readPeakFile)
+peakList_Standard <- lapply(peakList, keepStandardChromosomes, pruning.mode="coarse")
+peakList_Autosome <- lapply(peakList_Standard, dropSeqlevels, c("chrX","chrY"), pruning.mode="coarse")
+peakAnnoList <- lapply(peakList_Autosome, annotatePeak, TxDb=txdb,tssRegion=c(-3000, 3000), verbose=TRUE)
+plotAnnoBar(peakAnnoList)
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_Activity/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakList <- lapply(files, readPeakFile)
+peakList_Standard <- lapply(peakList, keepStandardChromosomes, pruning.mode="coarse")
+peakList_Autosome <- lapply(peakList_Standard, dropSeqlevels, c("chrX","chrY"), pruning.mode="coarse")
+peakAnnoList <- lapply(peakList_Autosome, annotatePeak, TxDb=txdb,tssRegion=c(-3000, 3000), verbose=TRUE)
+plotAnnoBar(peakAnnoList)
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_NoTreatment//")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakList <- lapply(files, readPeakFile)
+peakList_Standard <- lapply(peakList, keepStandardChromosomes, pruning.mode="coarse")
+peakList_Autosome <- lapply(peakList_Standard, dropSeqlevels, c("chrX","chrY"), pruning.mode="coarse")
+peakAnnoList <- lapply(peakList_Autosome, annotatePeak, TxDb=txdb,tssRegion=c(-3000, 3000), verbose=TRUE)
+plotAnnoBar(peakAnnoList)
+```
+
+```{r}
+#peakAnno <- annotatePeak(gr,tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="EnsDb.Hsapiens.v86")  #annotation of all peaks
+
+NoTreatment_Files <- as.list(list.files(path="~/RepairSeq/dba_samples_NoTreatment/", pattern = "\\.narrowPeak$"))
+print(NoTreatment_Files)
+peakAnnoList <- lapply(NoTreatment_Files, annotatePeak, TxDb=txdb,tssRegion=c(-3000, 3000), verbose=FALSE)
+plotAnnoBar(peakAnnoList)
+
+
+peak <- keepStandardChromosomes(peak, pruning.mode="coarse") ##Remove dumb contigs
+
+
+
+tagHeatmap(tagMatrixList, xlim=c(-3000, 3000), color=NULL)
+View(files)
+
+files <- as.list(list.files())
+files <- setNames(files,files)
+```
+
+
+```{r}
+promoter <- getPromoters(TxDb=txdb, upstream=3000, downstream=3000)
+tagMatrixList <- lapply(files, getTagMatrix, windows=promoter)
+tagHeatmap(tagMatrixList[1:5], xlim=c(-3000, 3000), color=NULL)
+
+#gra = annotatePeakInBatch(gr, AnnotationData=anno86)
+#covplot(gr)
+```
+```{r}
+setwd("~/RepairSeq/dba_samples_Activity//")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakAnno <- annotatePeak(files[[1]], tssRegion=c(-3000, 3000),TxDb=txdb)
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+peak <- readPeakFile(files[[1]])
+gene <- seq2gene(peak, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_Activity/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakAnno <- annotatePeak(files[[7]], tssRegion=c(-3000, 3000),TxDb=txdb)
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+peak <- readPeakFile(files[[7]])
+gene <- seq2gene(peak, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2)
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_Activity/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakAnno <- annotatePeak(files[[13]], tssRegion=c(-3000, 3000),TxDb=txdb)
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+peak <- readPeakFile(files[[13]])
+gene <- seq2gene(peak, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2)
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_Activity/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakAnno <- annotatePeak(files[[14]], tssRegion=c(-3000, 3000),TxDb=txdb)
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+peak <- readPeakFile(files[[14]])
+gene <- seq2gene(peak, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2)
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_Activity/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakAnno <- annotatePeak(files[[15]], tssRegion=c(-3000, 3000),TxDb=txdb)
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+peak <- readPeakFile(files[[15]])
+gene <- seq2gene(peak, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2)
+```
+```{r}
+#setwd("~/RepairSeq/dba_samples_NoTreatment//")
+#files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+#peakList <- lapply(files, readPeakFile)
+#peakList_Standard <- lapply(peakList, keepStandardChromosomes, pruning.mode="coarse")
+#peakList_Autosome <- lapply(peakList_Standard, dropSeqlevels, c("chrX","chrY"), pruning.mode="coarse")
+#peakAnnoList <- lapply(peakList_Autosome, annotatePeak, TxDb=txdb,tssRegion=c(-3000, 3000), verbose=TRUE)
+genes = lapply(peakAnnoList_Small, function(i) as.data.frame(i)$geneId)
+names(genes) = sub("_", "\n", names(genes))
+compKEGG <- compareCluster(geneCluster= genes,fun= "enrichKEGG",pvalueCutoff  = 0.05,pAdjustMethod = "BH")
+dotplot(compKEGG, showCategory = 15, title = "KEGG Pathway Enrichment Analysis")
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_AllRepair/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakAnno <- annotatePeak(files[[3]], tssRegion=c(-3000, 3000),TxDb=txdb)
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+peak <- readPeakFile(files[[3]])
+gene <- seq2gene(peak, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+setwd("~/RepairSeq/dba_samples_AllRepair/")
+files <- as.list(list.files(pattern = "\\.narrowPeak$"))
+peakAnno <- annotatePeak(files[[5]], tssRegion=c(-3000, 3000),TxDb=txdb)
+pathway1 <- enrichPathway(as.data.frame(peakAnno)$geneId)
+peak <- readPeakFile(files[[5]])
+gene <- seq2gene(peak, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb)
+pathway2 <- enrichPathway(gene)
+dotplot(pathway2) + theme_classic()
+```
+
+```{r}
+genes = lapply(peakAnnoList, function(i) as.data.frame(i)$geneId)
+names(genes) = sub("_", "\n", names(genes))
+compKEGG <- compareCluster(geneCluster= genes, fun= "enrichKEGG", pvalueCutoff  = 0.05, pAdjustMethod = "BH")
+dotplot(compKEGG, showCategory = 15, title = "KEGG Pathway Enrichment Analysis")
+```
+
+```{r}
+dotplot(pathway2) + theme_classic()
+```
+
+```{r}
+seq <-getSequence(test, genome=BSgenome.Hsapiens.UCSC.hg38)
+```
+
+```{r}
+seq[500]
+pqsfinder(seq[[500]])
+```
+
+```{r}
+for (i in 1:length(seq)){
+  seq@metadata[i] <-  pqsfinder(seq[[i]])
+}
+```
+
+
+```{r}
+#Profile of ChIP peaks binding to TSS regions
+promoter <- getPromoters(TxDb=txdb, upstream=3000, downstream=3000)
+tagMatrixList <- lapply(files, getTagMatrix, windows=promoter)
+tagHeatmap(tagMatrixList, xlim=c(-3000, 3000), color=NULL)
+```
+
+```{r}
+theme_set(theme_minimal())
+drpr_colors <- c(
+  `red`        = "#c62828",
+  `pink`       = "#f48fb1",
+  `purple`     = "#8e24aa",
+  `deep purple`= "#4527a0",
+  `indigo`     = "#1a237e",
+  `blue`       = "#1976d2",
+  `light blue` = "#b3e5fc",
+  `cyan`       = "#0097a7",
+  `teal`       = "#80cbc4",
+  `green`      = "#388e3c",
+  `light green`= "#558b2f",
+  `lime`       = "#827717",
+  `yellow`     = "#ffea00",
+  `amber`      = "#ffb300",
+  `orange`     = "#f57c00",
+  `deep orange`= "#ff3d00",
+  `grey`       = "#bdbdbd",
+  `blue grey`  = "#b0bec5")
+
+drpr_cols <- function(...) {
+  cols <- c(...)
+  
+  if (is.null(cols))
+    return (drpr_colors)
+  
+  drpr_colors[cols]
+}
+
+drpr_cols()
+
+## ggplot (mtcars, aes, hp, mpg))+
+  ##geom_point(color = drpr_cols("red"))
+    ##size=4, alpha = .8)
+
+drpr_palettes <- list(
+  'main' = drpr_cols("blue", "green", "yellow"),
+  'cool' = drpr_cols("blue", "green"),
+  'hot' = drpr_cols("yellow", "orange", "red"),
+  'mixed' = drpr_cols("blue", "green", "yellow", "orange", "red"),
+  'grey'  = drpr_cols("grey", "blue grey")
+)
+
+drpr_pal <- function(palette = "main", reverse = FALSE, ...) {
+    pal <- drpr_palettes[[palette]]
+    if (reverse) pal <- rev(pal)
+    
+    colorRampPalette(pal, ...)
+}
+
+drpr_pal("cool")
+#> function (n) 
+#> {
+#>     x <- ramp(seq.int(0, 1, length.out = n))
+#>     if (ncol(x) == 4L) 
+#>         rgb(x[, 1L], x[, 2L], x[, 3L], x[, 4L], maxColorValue = 255)
+#>     else rgb(x[, 1L], x[, 2L], x[, 3L], maxColorValue = 255)
+#> }
+#> <bytecode: 0x7fd7e497ba38>
+#> <environment: 0x7fd7e497af78>
+
+drpr_pal("cool")(10)
+#creates a gradient of 10 color codes/shares for the cool palet (blue/green)
+
+scale_color_drpr <- function(palette = "main", discrete = TRUE, reverse = FALSE, ...) {
+  pal <- drpr_pal(palette = palette, reverse = reverse)
+
+  if (discrete) {
+    discrete_scale("colour", paste0("drpr_", palette), palette = pal, ...)
+  } else {
+    scale_color_gradientn(colours = pal(256), ...)
+  }
+}
+
+scale_fill_drpr <- function(palette = "main", discrete = TRUE, reverse = FALSE, ...) {
+  pal <- drpr_pal(palette = palette, reverse = reverse)
+
+  if (discrete) {
+    discrete_scale("fill", paste0("drpr_", palette), palette = pal, ...)
+  } else {
+    scale_fill_gradientn(colours = pal(256), ...)
+  }
+}
+
+```
+```{r}
+ggplot(iris, aes(Sepal.Width, Sepal.Length, color = Species)) +
+    geom_point(size = 4) +
+    scale_color_drpr(palette = "cool")
+```
+
