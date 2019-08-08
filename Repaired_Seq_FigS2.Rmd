@@ -3,6 +3,13 @@ title: "Repair_Seq_Analysis"
 output: html_notebook
 ---
 
+```{r}
+#Fig. S2. CRISPR/Cas9 generates novel DNA repair hotspots in post-mitotic human neurons.
+#(A) CRISPR/Cas9 induced DNA repair hotspots in C9orf72 and RANBP17.
+#(B) RPMs (C9orf72, ERG, FOXO1, GATA3, HOMER1, RANBP17, SIRT6) Cas9 vs Cas9+guides Box plot (2xH1 + 2xH9s)
+
+
+```
 
 ```{r}
 library("DiffBind")
@@ -66,18 +73,6 @@ gr <- dropSeqlevels(gr,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex C
 df <- as.data.frame(gr)
 my.formula <- y ~ x
 ggplot(df, aes(x=Conc_H1, y=Conc_H9)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlim(2,10)  + ylim(2,10)
-
-## KCL KCL low KCL+pki pki and low TTX == Activity mask
-
-## 1D edu 1D edc 1d edu+edc and GQ stabalizer == eduedc mask
-
-## lowH202 NCS ETP TOP1 and TOP2 and ParPi
-
-## 1D 4D 7D peaks no treatment
-
-### mpa bcb tpms to dba object
-
-
 
 
 ```

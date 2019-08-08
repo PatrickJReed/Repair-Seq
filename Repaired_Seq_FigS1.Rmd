@@ -3,6 +3,17 @@ title: "Repair_Seq_Analysis"
 output: html_notebook
 ---
 
+```{r}
+#fig. S1. Genomics of genome repair hotspots in post-mitotic human neurons.
+#(A) Histogram of genome repair hotspot peak widths.
+#(B) Reproducibility between biological replicates of H1 and H9 ESC-iNs.
+#(C) Genome map of DNA repair hotspots in ESC-iNs.
+#(D) More detailed view of DNA repair hotspots on Chromosome X. 
+#(E) Genome annotations for DNA repair hotspots.
+#(F) Further examples of DNA repair hotspots in the DLG2 and the XRCC5 locus.
+
+
+```
 
 ```{r}
 library("DiffBind")
