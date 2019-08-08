@@ -1,4 +1,5 @@
 ---
+# Fig. 2. Relationship between DNA repair and transcription in human neurons.
 title: "Repair_Seq_Analysis Figure 2"
 output: html_notebook
 params:
@@ -24,7 +25,10 @@ library("ggExtra")
 library("ggpmisc")
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 anno86 <- annoGR(EnsDb.Hsapiens.v86)
-# Last modified 2018-08-19
+
+```
+
+```{r}
 bcbioRNASeq::prepareRNASeqTemplate()
 source("_setup.R")
 
@@ -35,6 +39,7 @@ stopifnot(is(repair_bcb, "bcbioRNASeq"))
 invisible(validObject(repair_bcb))
 print(repair_bcb)
 ```
+
 
 ```{r sample_data}
 # getMethod("sampleData", "SummarizedExperiment")
@@ -59,26 +64,72 @@ writeCounts(repair_raw_counts, repair_normalized_counts, repair_tpm, dir = ".")
 ```
 
 ```{r}
+#(A) RPM (repairs per kilobase million) from genome repair hotspots compared with TPM (transcripts per kilobase million) from total RNA-Seq define 4 distinct classes of genes based on their repair and transcription.
+load("repairseq_dbaV2.rdata")
+load("RNA_tpm.rda")
+
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
+dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
+
+H1H9_1D_Peaks <- makeGRangesFromDataFrame(as.data.frame(dba_1Day_EdU_None_ESCin$peaks), keep.extra.columns = TRUE)
+peakAnno_H1H9_1D <- annotatePeak(H1H9_1D_Peaks, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+peakAnno_H1H9_1D_df <- as.data.frame(peakAnno_H1H9_1D)
+
+H1H91D_ALL <- as.data.frame(table(peakAnno_H1H9_1D@anno@elementMetadata@listData$ENSEMBL[peakAnno_H1H9_1D@detailGenomicAnnotation$Intergenic == FALSE]))
+H1H91D_genic <- as.data.frame(table(peakAnno_H1H9_1D@anno@elementMetadata@listData$ENSEMBL[peakAnno_H1H9_1D@detailGenomicAnnotation$genic == TRUE]))
+#H1H91D_5UTR <- as.data.frame(table(peakAnno_1D_Common@anno@elementMetadata@listData$ENSEMBL[peakAnno_1D_Common@detailGenomicAnnotation$fiveUTR == TRUE]))
+#H1H91D_promoter <- as.data.frame(table(peakAnno_1D_Common@anno@elementMetadata@listData$ENSEMBL[peakAnno_1D_Common@detailGenomicAnnotation$Promoter == TRUE]))
+
+for(i in H1H91D_ALL$Var1){
+  H1H91D_ALL$length[H1H91D_ALL$Var1 == i] <- max(peakAnno_H1H9_1D@anno@elementMetadata@listData$geneLength[peakAnno_H1H9_1D@anno@elementMetadata@listData$ENSEMBL == i], na.rm=TRUE)
+  H1H91D_ALL$Score[H1H91D_ALL$Var1 == i] <- sum(peakAnno_H1H9_1D_df$Score[peakAnno_H1H9_1D_df$ENSEMBL == i & peakAnno_H1H9_1D@detailGenomicAnnotation$Intergenic == FALSE], na.rm=TRUE)
+  H1H91D_ALL$Reads[H1H91D_ALL$Var1 == i] <- sum(peakAnno_H1H9_1D_df$Reads[peakAnno_H1H9_1D_df$ENSEMBL == i & peakAnno_H1H9_1D@detailGenomicAnnotation$Intergenic == FALSE], na.rm=TRUE)
+  H1H91D_ALL$RPK[H1H91D_ALL$Var1 == i] <- sum(peakAnno_H1H9_1D_df$Reads[peakAnno_H1H9_1D_df$ENSEMBL == i & peakAnno_H1H9_1D@detailGenomicAnnotation$Intergenic == FALSE], na.rm=TRUE) / H1H91D_ALL$length[H1H91D_ALL$Var1 == i] / 1000
+}
+
+for(i in H1H91D_genic$Var1){
+  H1H91D_genic$length[H1H91D_genic$Var1 == i] <- max(peakAnno_H1H9_1D@anno@elementMetadata@listData$geneLength[peakAnno_H1H9_1D@anno@elementMetadata@listData$ENSEMBL == i], na.rm=TRUE)
+  H1H91D_genic$Score[H1H91D_genic$Var1 == i] <- sum(peakAnno_H1H9_1D_df$Score[peakAnno_H1H9_1D_df$ENSEMBL == i & peakAnno_H1H9_1D@detailGenomicAnnotation$genic == TRUE], na.rm=TRUE)
+  H1H91D_genic$Reads[H1H91D_genic$Var1 == i] <- sum(peakAnno_H1H9_1D_df$Reads[peakAnno_H1H9_1D_df$ENSEMBL == i & peakAnno_H1H9_1D@detailGenomicAnnotation$genic == TRUE], na.rm=TRUE)
+  H1H91D_genic$RPK[H1H91D_genic$Var1 == i] <- sum(peakAnno_H1H9_1D_df$Reads[peakAnno_H1H9_1D_df$ENSEMBL == i & peakAnno_H1H9_1D@detailGenomicAnnotation$genic == TRUE], na.rm=TRUE) / H1H91D_genic$length[H1H91D_genic$Var1 == i] / 1000
+}
+
+ScaleFactor_All <- sum(H1H91D_ALL$RPK) / 1000000
+ScaleFactor_genic <- sum(H1H91D_genic$RPK) / 1000000
+
+H1H91D_ALL$repairTPM <- H1H91D_ALL$RPK / ScaleFactor_All
+H1H91D_genic$repairTPM <- H1H91D_genic$RPK / ScaleFactor_genic
+
+RNA_tpm_df <- as.data.frame(RNA_tpm)
+RNA_TPM_H1H9 <- RNA_tpm_df[,c(1,4,5,10)]
+RNA_TPM_H1H9$ENSEMBL <- rownames(RNA_TPM_H1H9)
+RNA_TPM_H1H9$avg_RNA_TPM <- rowMeans(RNA_TPM_H1H9[c('H9UNG_A', 'H9UNG_B','H9UNG_A', 'H9UNG_B')], na.rm=FALSE)
+
+H1H9_1D_Data_All <- merge(RNA_TPM_H1H9, H1H91D_ALL, by.x="ENSEMBL", by.y ="Var1", all=TRUE)
 
 
-# Fig. 2. Relationship between DNA repair and transcription in human neurons.
+H1H9_1D_Data_All$repairTPM[is.na(H1H9_1D_Data_All$repairTPM)] <- 0
 
-# (A) RPM (repairs per kilobase million) from genome repair hotspots compared with TPM (transcripts per kilobase million) from total RNA-Seq define 4 distinct classes of genes based on their repair and transcription.
+H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM > 0 & H1H9_1D_Data_All$repairTPM > 0] <- "Class_4"
+H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM == 0 & H1H9_1D_Data_All$repairTPM > 0] <- "Class_3"
+H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM > 0 & H1H9_1D_Data_All$repairTPM==0] <- "Class_2"
+H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM == 0 & H1H9_1D_Data_All$repairTPM==0] <- "Class_1"
 
-# (C) Gene ontology analysis for DNA repair hotspots.
-
-# (E) Box plots for eQTLs in promoters/intergenic regions.
+ggplot(H1H9_1D_Data_All, aes(x=avg_RNA_TPM + .0001, y=repairTPM + .0001))  + scale_x_log10() + scale_y_log10() +
+geom_point(alpha = 0.2, size=.5, aes(colour=Class))+
+xlab("expression TPMs")+
+ylab("Repair TPMs")+
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
 
 ```
 
 
 ```{r}
-#(A) RPM (repairs per kilobase million) from genome repair hotspots compared with TPM (transcripts per kilobase million) from total RNA-Seq define 4 distinct classes of genes based on their repair and transcription.
-
-
-
 # (B) Total RPMs compared with TPMs demonstrate few genes change classes when accounting for all measured repairs.
-
 load("repair_tpm.rda")
 load("RNA_tpm.rda")
 
@@ -111,3 +162,15 @@ theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, 
 
 
 ```
+
+```{r}
+# (C) Gene ontology analysis for DNA repair hotspots.
+
+```
+
+
+```{r}
+# (E) Box plots for eQTLs in promoters/intergenic regions.
+
+```
+
