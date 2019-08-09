@@ -119,11 +119,18 @@ H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM == 0 & H1H9_1D_Data_All$repa
 H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM > 0 & H1H9_1D_Data_All$repairTPM==0] <- "Class_2"
 H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM == 0 & H1H9_1D_Data_All$repairTPM==0] <- "Class_1"
 
-ggplot(H1H9_1D_Data_All, aes(x=avg_RNA_TPM+.0001, y=repairTPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
+pdf("H1H9_1D_Common_Peak_TPMs_vs_RNA_TPMs.pdf", paper="USr")
+filter(H1H9_1D_Data_All, !is.na(Class)) %>% ggplot(aes(x=avg_RNA_TPM+.0001, y=repairTPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
 geom_point(alpha = 0.2, size=.5, aes(colour=Class)) +
 xlab("expression TPMs")+
 ylab("Repair TPMs")+
 theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91"))
+dev.off()
+
+pdf("H1H9_1D_Common_Peak_TPMs_vs_RNA_TPMs_BarPlot.pdf", paper="USr")
+filter(H1H9_1D_Data_All, !is.na(Class)) %>% ggplot(aes(Class)) + geom_bar(aes(fill=Class)) + scale_fill_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91")) + theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + ylab("Gene Count")
+dev.off()
+
 
 write.csv(H1H9_1D_Data_All, "H1H9_1Day_Peak_TPM_4Classes.csv")
 
@@ -156,18 +163,38 @@ H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_RNA_TPM > 0 & H1H9_1D_TPM_Data$avg_R
 H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_RNA_TPM == 0 & H1H9_1D_TPM_Data$avg_Repair_TPM==0] <- "Class_1"
 
 # (B) Total RPMs compared with TPMs demonstrate few genes change classes when accounting for all measured repairs.
+pdf("H1H9_1D_Common_TotalReads_TPMs_vs_RNA_TPMs.pdf", paper="USr")
+my.formula <- y ~ x
 ggplot(H1H9_1D_TPM_Data, aes(x=avg_RNA_TPM + .0001, y=avg_Repair_TPM + .0001)) + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
 geom_point(alpha = 0.2, size=.5, aes(colour=Class))+
 xlab("RNA TPMs")+
 ylab("Repair TPMs")+
-theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91"))
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91")) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE) 
+dev.off()
 
 write.csv(H1H9_1D_TPM_Data, "H1H9_1Day_TPM_4Classes.csv")
 
+pdf("H1H9_1D_Common_TotalReads_TPMs_vs_RNA_TPMs_BarPlot.pdf", paper="USr")
+ggplot(H1H9_1D_TPM_Data, aes(Class)) + geom_bar(aes(fill=Class)) + scale_fill_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91")) + theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + ylab("Gene Count")
+dev.off()
 ```
 
 ```{r}
+Peak_TotalReads_Data_Merged <- merge(H1H9_1D_Data_All,H1H9_1D_TPM_Data, by.x="ENSEMBL", by.y ="ENSEMBL", all=TRUE)
+pdf("H1H9_1D_Common_TotalReads_TPMs_vs_RNA_TPMs_Colored_By_PeakClass.pdf", paper="USr")
+ggplot(Peak_TotalReads_Data_Merged, aes(x=avg_RNA_TPM.y + .0001, y=avg_Repair_TPM + .0001)) + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
+geom_point(alpha = 0.05, size=.5, aes(colour=Class.x))+
+xlab("RNA TPMs")+
+ylab("Repair TPMs")+
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91"))
+dev.off()
+
+```
+```{r}
 # (C) Gene ontology analysis for DNA repair hotspots.
+#Class 2 vs class 4
+# class 3 vs class 4
+
 ClassData_Peaks <- split(H1H9_1D_Data_All, H1H9_1D_Data_All$Class)
 Class_1_Peaks <- ClassData_Peaks$Class_1
 Class_2_Peaks <- ClassData_Peaks$Class_2
@@ -181,6 +208,25 @@ Class_2_TPM <- ClassData_TPM$Class_2
 Class_3_TPM <- ClassData_TPM$Class_3
 Class_4_TPM <- ClassData_TPM$Class_4
 
+pdf("H1H9_1D_Common_TotalReads_TPMs_vs_RNA_TPMs_Class4 with fit.pdf", paper="USr")
+model <- lm(log(avg_Repair_TPM) ~ log(avg_RNA_TPM), Class_4_TPM)
+
+pred <- data.frame(
+  x = Class_4_TPM$avg_RNA_TPM,
+  p = exp(predict(model, Class_4_TPM))
+)
+ggplot(Class_4_TPM, aes(x=avg_RNA_TPM, y=avg_Repair_TPM)) +
+geom_point(alpha = 0.2, size=.5, aes(colour=Class)) +
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#662d91")) + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) + geom_line(data = pred, aes(x=x, y=p), col = "red")
+dev.off()
+
+
+summary(model)
+
+a <- exp(coef(model)[1])
+b <- coef(model)[2]
+a
+b
 ```
 
 
