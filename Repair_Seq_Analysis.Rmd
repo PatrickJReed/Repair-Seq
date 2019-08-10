@@ -47,12 +47,16 @@ dba_1D_Common <- dba_1D_Report[dba_1D_Report$`p-value` > .05]
 
 #Annotate 1D peaks and plot genomic distribition
 peakAnno_1D_Common <- annotatePeak(dba_1D_Common, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
-plotAnnoPie(peakAnno_1D_Common) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
 
+pdf("H1H9_1D_Common_Peaks_GenomicDistribution.pdf")
+plotAnnoPie(peakAnno_1D_Common) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
 #Look at functional enrichemnt of genes with 1D peaks
 gene <- seq2gene(dba_1D_Common, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
 ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
-dotplot(ego) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+pdf("H1H9_1D_Common_Peaks_GeneOntolgy.pdf")
+barplot(ego, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
 cnetplot(ego, categorySize="pvalue", foldChange=gene)
 
 ##H1 vs H9 correlation

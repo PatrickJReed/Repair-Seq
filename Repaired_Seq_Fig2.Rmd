@@ -191,9 +191,7 @@ dev.off()
 
 ```
 ```{r}
-# (C) Gene ontology analysis for DNA repair hotspots.
-#Class 2 vs class 4
-# class 3 vs class 4
+
 
 ClassData_Peaks <- split(H1H9_1D_Data_All, H1H9_1D_Data_All$Class)
 Class_1_Peaks <- ClassData_Peaks$Class_1
@@ -228,7 +226,40 @@ b <- coef(model)[2]
 a
 b
 ```
+```{r}
+# (C) Gene ontology analysis for DNA repair hotspots.
+#Class 2 vs class 4
+# class 3 vs class 4
 
+ego4 <- enrichGO(gene=Class_4_Peaks$ENSEMBL, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+pdf("H1H9_1D_Common_Class4_PeakTPMs_FunctionalAnalysis.pdf", paper="USr")
+barplot(ego4, showCategory=20)  + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+
+```
+
+
+
+```{r}
+ego2 <- enrichGO(gene=Class_2_Peaks$ENSEMBL, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+pdf("H1H9_1D_Common_Class2_PeakTPMs_FunctionalAnalysis.pdf", paper="USr")
+barplot(ego2, showCategory=20)  + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
+
+```{r}
+ego1 <- enrichGO(gene=Class_1_Peaks$ENSEMBL, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+pdf("H1H9_1D_Common_Class1_PeakTPMs_FunctionalAnalysis.pdf", paper="USr")
+barplot(ego1, showCategory=20)  + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
+
+```{r}
+ego3 <- enrichGO(gene=Class_3_Peaks$ENSEMBL, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+pdf("H1H9_1D_Common_Class3_PeakTPMs_FunctionalAnalysis.pdf", paper="USr")
+barplot(ego3, showCategory=20)  + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+```
 
 ```{r}
 # (E) Box plots for eQTLs in promoters/intergenic regions.
