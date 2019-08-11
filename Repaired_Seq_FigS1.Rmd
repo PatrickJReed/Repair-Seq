@@ -5,7 +5,6 @@ output: html_notebook
 
 ```{r}
 #fig. S1. Genomics of genome repair hotspots in post-mitotic human neurons.
-#(D) More detailed view of DNA repair hotspots on Chromosome X. 
 #(F) Further examples of DNA repair hotspots in the DLG2 and the XRCC5 locus.
 
 
@@ -64,10 +63,27 @@ df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Report)
 gr <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
 gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
 gr <- dropSeqlevels(gr,  c("chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
-df <- as.data.frame(gr)
-my.formula <- y ~ x
-ggplot(df, aes(x=Conc_H1, y=Conc_H9)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlim(2,10)  + ylim(2,10)
 
+H9 <- dba.peakset(dba_1Day_EdU_None_ESCin, 1:2, minOverlap=1, bRetrieve=TRUE)
+H1 <- dba.peakset(dba_1Day_EdU_None_ESCin, 3:4, minOverlap=1, bRetrieve=TRUE)
+
+df <- as.data.frame(H9)
+df2 <- as.data.frame(H1)
+df3 <- as.data.frame(gr)
+my.formula <- y ~ x
+pdf("H9_Replicate_Correlation.pdf")
+ggplot(df, aes(x=H9, y=H9.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H9 ESC-iN Replicate 1") + ylab("H9 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
+dev.off()
+
+pdf("H1_Replicate_Correlation.pdf")
+my.formula <- y ~ x
+ggplot(df2, aes(x=H1, y=H1.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1 ESC-iN Replicate 1") + ylab("H1 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
+dev.off()
+
+pdf("H1_H9_Correlation.pdf")
+my.formula <- y ~ x
+ggplot(df, aes(x=H1_Average, y=H9_Average)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1") + ylab("H9") + xlim(0,500) + ylim(0,500)
+dev.off()
 ```
 
 
@@ -110,6 +126,12 @@ high = "#662d91", midpoint = .05, space = "Lab", na.value = "grey0", guide = "co
 high = "#662d91", midpoint = .05, space = "Lab", na.value = "grey0", guide = "colourbar")
 dev.off()
 
+ggplot(binned_data, aes(x=c(1:binned_data@seqinfo@seqlengths[1]))) + geom_line(aes(y=binned_data$smooth_avg[1:248956422]))
+
+length(binned_data$smooth_avg[1:248956422])
+length(c(1:binned_data@seqinfo@seqlengths[1]))
+
+
 ```
 ```{r}
 averagePerBin <- function(x, binsize, mcolnames=NULL)
@@ -140,6 +162,13 @@ averagePerBin <- function(x, binsize, mcolnames=NULL)
 ```
 
 ```{r}
-avg_per_bin <- averagePerBin(gr, 100000, mcolnames="Conc")
-```
+#(D) More detailed view of DNA repair hotspots on Chromosome X. 
 
+y = binned_chrX$smooth_avg
+x = binned_chrX@ranges@start
+my.max <- function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
+kp <- plotKaryotype(chromosomes="chrX", plot.type=2, genome="hg38")
+kpPlotDensity(kp, all.genes, window.size = 0.5e6, data.panel = 2, col=muted("green"))
+kpLines(kp, chr="chrX", x=x, y=y, col="#662d91", data.panel = 1)
+kpAxis(kp, data.panel=1, ymax = my.max(y), r1=.3)
+kpAxis(kp, data.panel=2)
