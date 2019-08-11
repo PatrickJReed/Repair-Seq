@@ -5,7 +5,6 @@ output: html_notebook
 
 ```{r}
 #fig. S1. Genomics of genome repair hotspots in post-mitotic human neurons.
-#(C) Genome map of DNA repair hotspots in ESC-iNs.
 #(D) More detailed view of DNA repair hotspots on Chromosome X. 
 #(F) Further examples of DNA repair hotspots in the DLG2 and the XRCC5 locus.
 
@@ -64,7 +63,7 @@ df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Report)
 ##Convert Diffbind object to GRanges object
 gr <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
 gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
-gr <- dropSeqlevels(gr,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+gr <- dropSeqlevels(gr,  c("chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
 df <- as.data.frame(gr)
 my.formula <- y ~ x
 ggplot(df, aes(x=Conc_H1, y=Conc_H9)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlim(2,10)  + ylim(2,10)
@@ -88,10 +87,59 @@ barplot(ego, showCategory=20) + theme_classic() + theme(panel.border = element_r
 dev.off()
 cnetplot(ego, categorySize="pvalue", foldChange=gene)
 
+```
 
+```{r}
+#Genome map of DNA repair hotspots in ESC-iNs.
+library("ggbio")
+library("smoother")
+df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Common)
+gr <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
+gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
+gr <- dropSeqlevels(gr,  c("chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+b <- c(248956422,242193529,198295559,190214555,181538259,170805979,159345973,145138636,138394717,133797422,135086622,133275309,114364328,107043718,101991189,90338345,83257441,80373285,58617616,64444167,46709983,50818468,156040895)
+seqlengths(gr) <- b
+score <- GenomicRanges::coverage(gr, weight="Conc")
+bins <- GenomicRanges::tileGenome(GenomeInfoDb::seqlengths(gr), tilewidth=100000,cut.last.tile.in.chrom=TRUE)
+binned_data <- GenomicRanges::binnedAverage(bins, score, "average_score")
+binned_data$smooth_avg <- smth(binned_data$average_score,window = 10,method = "gaussian")
 
-
-
-
+pdf("Chromosomes_Plot_100KB.pdf", paper="USr")
+autoplot(binned_data, layout = "karyogram", aes(color = smooth_avg, fill = smooth_avg), na.value="grey0", chr="chrX")  +scale_colour_gradient2(low = "grey0", mid = "white",
+high = "#662d91", midpoint = .05, space = "Lab", na.value = "grey0", guide = "colourbar") +scale_fill_gradient2(low = "grey0", mid = "white",
+high = "#662d91", midpoint = .05, space = "Lab", na.value = "grey0", guide = "colourbar")
+dev.off()
 
 ```
+```{r}
+averagePerBin <- function(x, binsize, mcolnames=NULL)
+{
+     if (!is(x, "GenomicRanges"))
+         stop("'x' must be a GenomicRanges object")
+     if (any(is.na(seqlengths(x))))
+         stop("'seqlengths(x)' contains NAs")
+     bins <- IRangesList(lapply(seqlengths(x),
+                                function(seqlen)
+                                  IRanges(breakInChunks(seqlen, binsize))))
+     ans <- as(bins, "GRanges")
+     seqinfo(ans) <- seqinfo(x)
+     if (is.null(mcolnames))
+         return(ans)
+     averageMCol <- function(colname)
+     {
+         cvg <- coverage(x, weight=colname)
+         views_list <- RleViewsList(
+                           lapply(names(cvg),
+                               function(seqname)
+                                   Views(cvg[[seqname]], bins[[seqname]])))
+         unlist(viewMeans(views_list), use.names=FALSE)
+     }
+     mcols(ans) <- DataFrame(lapply(mcols(x)[mcolnames], averageMCol))
+     ans
+}
+```
+
+```{r}
+avg_per_bin <- averagePerBin(gr, 100000, mcolnames="Conc")
+```
+
