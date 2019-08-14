@@ -252,179 +252,82 @@ interestingGroups(rld) <- "treatment"
 saveData(rld, dir = params$data_dir)
 ```
 
+```{r alpha_summary, results="asis"}
+alphaSummary(dds)
+resultsNames(dds)
+
+```
 
 
 ```{r results}
-res_H1_d14 <- results(dds, contrast=c("group","",""))
-res_H1_d21 <- results(dds, contrast=c("group","",""))
-res_H9_d14 <- results(dds, contrast=c("group","",""))
-res_H9_d21 <- results(dds, contrast=c("group","",""))
+res_H1_d14 <- results(dds, contrast=c("group","H1Cas9_guides_14","H1Cas9_empty_14"))
+res_H1_d21 <- results(dds, contrast=c("group","H1Cas9_guides_21","H1Cas9_empty_21"))
+res_H9_d14 <- results(dds, contrast=c("group","H9Cas9_guides_14","H9Cas9_empty_14"))
+res_H9_d21 <- results(dds, contrast=c("group","H9Cas9_guides_21","H9Cas9_empty_21"))
+
+```
+
+```{r}
+plotVolcano(res_H1_d14)
+plotVolcano(res_H1_d21)
+plotVolcano(res_H9_d14)
+plotVolcano(res_H9_d21)
 
 ```
 
 # Results
 
-For contrast argument as character vector:
-
-1. Design matrix factor of interest.
-2. Numerator for LFC (expt).
-3. Denominator for LFC (control).
-
-```{r contrasts}
-# factor; numerator; denominator
-# levels(dds$genotype)
-# help("results", "DESeq2")
-stopifnot(is.list(params$contrasts))
-contrasts <- params$contrasts
-names <- vapply(
-    X = contrasts,
-    FUN = function(x) {
-        paste(x[[1]], x[[2]], "vs", x[[3]], sep = "_")
-        
-    },
-    FUN.VALUE = "character"
+```{r results_tables_H1_14, results="asis"}
+res_tbl_H1_14 <- resultsTables(
+    results = res_H1_d14,
+    counts = dds,
+    lfcThreshold = 0,
+    write = TRUE,
+    summary = TRUE,
+    headerLevel = 2,
+    dir = params$results_dir,
 )
-names(contrasts) <- names
-print(contrasts)
+saveData(res_H1_d14, res_tbl_H1_14, dir = params$data_dir)
 ```
 
-```{r res_unshrunken}
-res_list_unshrunken <- mapply(
-    FUN = results,
-    contrast = contrasts,
-    MoreArgs = list(
-        object = dds,
-        alpha = params$alpha
-    ),
-    SIMPLIFY = FALSE,
-    USE.NAMES = FALSE
+```{r results_tables_H1_14, results="asis"}
+res_tbl_H1_21 <- resultsTables(
+    results = res_H1_d21,
+    counts = dds,
+    lfcThreshold = 0,
+    write = TRUE,
+    summary = TRUE,
+    headerLevel = 2,
+    dir = params$results_dir,
 )
-names(res_list_unshrunken) <- names
-saveData(res_list_unshrunken, dir = params$data_dir)
+saveData(res_H1_d21, res_tbl_H1_21, dir = params$data_dir)
 ```
 
-Now let's calculate shrunken log2 fold change values with `DESeq2::lfcShrink()`. We're using the "normal" shrinkage estimator (default in DESeq2); the "apeglm" shrinkage estimator is also promising but doens't work well with complex contrast designs.
-
-```{r res_shrunken}
-# For `type` arguments other than "normal", `coef` argument is required.
-# Otherwise can use `contrast`, which is more intuitive and readable.
-# If using `coef` number, must match order in `resultsNames(dds)`.
-# The new apeglm method is great but currently only works with coef.
-# help("lfcShrink", "DESeq2")
-# help("coef", "DESeq2")
-# help("resultsNames", "DESeq2")
-# This step can be a little slow and sped up with the `parallel` argument.
-res_list_shrunken <- mapply(
-    FUN = lfcShrink,
-    res = res_list_unshrunken,
-    contrast = contrasts,
-    MoreArgs = list(
-        dds = dds,
-        type = "normal"
-    ),
-    SIMPLIFY = FALSE,
-    USE.NAMES = TRUE
+```{r results_tables_H9_14, results="asis"}
+res_tbl_H9_14 <- resultsTables(
+    results = res_H9_d14,
+    counts = dds,
+    lfcThreshold = 0,
+    write = TRUE,
+    summary = TRUE,
+    headerLevel = 2,
+    dir = params$results_dir,
 )
-saveData(res_list_shrunken, dir = params$data_dir)
+saveData(res_H9_d14, res_tbl_H9_14, dir = params$data_dir)
 ```
 
-```{r plot_ma}
-mapply(
-    FUN = plotMA,
-    object = res_list_shrunken,
-    MoreArgs = list(lfcThreshold = params$lfc),
-    SIMPLIFY = FALSE
+```{r results_tables_H1_14, results="asis"}
+res_tbl_H9_21 <- resultsTables(
+    results = res_H9_d21,
+    counts = dds,
+    lfcThreshold = 0,
+    write = TRUE,
+    summary = TRUE,
+    headerLevel = 2,
+    dir = params$results_dir,
 )
+saveData(res_H9_d21, res_tbl_H9_21, dir = params$data_dir)
 ```
 
-## Volcano
 
-A volcano plot compares significance (BH-adjusted *P* value) against fold change (log2) [@Cui2003-rn; @Li2014-ll]. Genes in the green box with text labels have an adjusted *P* value are likely to be the top candidate genes of interest.
 
-```{r plot_volcano}
-mapply(
-    FUN = plotVolcano,
-    object = res_list_shrunken,
-    MoreArgs = list(lfcThreshold = params$lfc),
-    SIMPLIFY = FALSE
-)
-```
-
-## PCA
-
-```{r plot_deg_pca}
-# help("pheatmap", "pheatmap")
-mapply(
-    FUN = plotDEGPCA,
-    results = res_list_shrunken,
-    MoreArgs = list(
-        counts = rld,
-        label = TRUE
-    ),
-    SIMPLIFY = FALSE
-)
-```
-
-## Heatmap
-
-This plot shows only differentially expressed genes on a per-sample basis. We have scaled the data by row and used the `ward.D2` method for clustering [@Ward1963-xf].
-
-```{r plot_deg_heatmap}
-# help("pheatmap", "pheatmap")
-invisible(mapply(
-    FUN = plotDEGHeatmap,
-    results = res_list_shrunken,
-    MoreArgs = list(
-        counts = rld,
-        clusteringMethod = "ward.D2",
-        scale = "row"
-    ),
-    SIMPLIFY = FALSE
-))
-```
-
-# Results tables
-
-Subset the results into separate tables, containing all genes, differentially expressed genes in both directions, and directional tables.
-
-```{r results_tables, results="asis"}
-# Here we're creating subset tables of the DEGs, and adding the normalized
-# counts used by DESeq2 for the differential expression analysis.
-res_tbl_list <- mapply(
-    FUN = resultsTables,
-    results = res_list_shrunken,
-    MoreArgs = list(
-        counts = dds,
-        lfcThreshold = params$lfc,
-        summary = TRUE,
-        headerLevel = 2,
-        write = TRUE,
-        dir = params$results_dir,
-        dropboxDir = params$dropbox_dir
-    ),
-    SIMPLIFY = FALSE,
-    USE.NAMES = TRUE
-)
-saveData(res_tbl_list, dir = params$data_dir)
-```
-
-Differentially expressed gene (DEG) tables are sorted by BH-adjusted P value, and contain the following columns:
-
-- `baseMean`: Mean of the normalized counts per gene for all samples.
-- `log2FoldChange`: log2 fold change.
-- `lfcSE`: log2 standard error.
-- `stat`: Wald statistic.
-- `pvalue`: Walt test *P* value.
-- `padj`: BH adjusted Wald test *P* value (corrected for multiple comparisons; aka FDR).
-
-## Top tables
-
-Only the top up- and down-regulated genes (arranged by log2 fold change) are shown.
-
-```{r top_tables, results="asis"}
-invisible(mapply(
-    FUN = topTables,
-    object = res_tbl_list,
-    MoreArgs = list(n = 20L, coding = FALSE)
-))
-```
