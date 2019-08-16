@@ -27,18 +27,88 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 ```{r}
 ### Load new dba and bcb objects.
 load("repairseq_dbaV2.rdata")
-load("repairseq_bcbV2.rda")
+#load("repairseq_bcbV2.rda")
 
 # New masks basic 1D Peaks Common across H1 and H9
 dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
 dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
 dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
-dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
-dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
-dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
-dba_1D <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
-dba_1D <- dba.analyze(dba_1D, method=DBA_DESEQ2)
-dba_1D_Report <- dba.report(dba_1D, contrast=1, th=1, bUsePval=TRUE)
-dba_1D_Common <- dba_1D_Report[dba_1D_Report$`p-value` > .05]
+dba_EdU_1Day_KCl_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("KCl","None"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_KCl_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_KCl_mask, merge="and")
+dba_1Day_EdU_KCl_ESCin <- dba(DBAobject,dba_EdU_1Day_KCl_ESCin_mask)
+dba_KCl <- dba.contrast(dba_1Day_EdU_KCl_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_KCl <- dba.analyze(dba_KCl, method=DBA_DESEQ2)
+#Peaks gained by KCL treatment
+dba_KCl_Report <- dba.report(dba_KCl, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bLoss=TRUE)
+
+dba_EdU_1Day_KCl.Pki_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("KCl_Pki","None"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_KCl.Pki_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_KCl.Pki_mask, merge="and")
+dba_1Day_EdU_KCl.Pki_ESCin <- dba(DBAobject,dba_EdU_1Day_KCl.Pki_ESCin_mask)
+dba_KCl.Pki <- dba.contrast(dba_1Day_EdU_KCl.Pki_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_KCl.Pki <- dba.analyze(dba_KCl.Pki, method=DBA_DESEQ2)
+#Peaks lost with KCL + pKi
+dba_KCl.Pki_Report <- dba.report(dba_KCl.Pki, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bGain=TRUE)
+
+dba_EdU_1Day_TTX_low_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("TTX_low","None"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_TTX_low_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_TTX_low_mask, merge="and")
+dba_1Day_EdU_TTX_low_ESCin <- dba(DBAobject,dba_EdU_1Day_TTX_low_ESCin_mask)
+dba_TTX_low <- dba.contrast(dba_1Day_EdU_TTX_low_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_TTX_low <- dba.analyze(dba_TTX_low, method=DBA_DESEQ2)
+#Peaks lost with TTX
+dba_TTX_low_Report <- dba.report(dba_TTX_low, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bGain=TRUE)
+
+dba_EdU_1Day_KCl_KCl.Pki_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("KCl_Pki","KCl"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_KCl_KCl.Pki_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_KCl_KCl.Pki_mask, merge="and")
+dba_1Day_EdU_KCl_KCl.Pki_ESCin <- dba(DBAobject,dba_EdU_1Day_KCl_KCl.Pki_ESCin_mask)
+dba_KCl_KCl.Pki <- dba.contrast(dba_1Day_EdU_KCl_KCl.Pki_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_KCl_KCl.Pki <- dba.analyze(dba_KCl_KCl.Pki, method=DBA_DESEQ2)
+#Peaks lost with KCL + pKi
+dba_KCL_KCl.Pki_Report <- dba.report(dba_KCl_KCl.Pki, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bLoss=TRUE)
+
+dba_EdU_1Day_TTX_low_KCl_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("KCl","TTX_low"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_TTX_low_KCl_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_TTX_low_KCl_mask, merge="and")
+dba_1Day_EdU_TTX_low_KCl_ESCin <- dba(DBAobject,dba_EdU_1Day_TTX_low_ESCin_mask)
+dba_TTX_low_KCl <- dba.contrast(dba_1Day_EdU_TTX_low_KCl_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_TTX_low_KCl <- dba.analyze(dba_TTX_low_KCl, method=DBA_DESEQ2)
+#Peaks lost with TTX
+dba_TTX_low_KCl_Report <- dba.report(dba_TTX_low_KCl, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bGain=TRUE)
 
 ```
+
+```{r}
+dba.plotMA(dba_KCl, bFlip=TRUE)
+peakAnno_KCl <- annotatePeak(dba_KCl_Report, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+gene_KCl <- seq2gene(dba_KCl_Report, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego_KCl <- enrichGO(gene=gene_KCl, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+barplot(ego_KCl, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+plotAnnoPie(peakAnno_KCl) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+
+```{r}
+dba.plotMA(dba_KCl.Pki, bFlip=TRUE)
+peakAnno_KCl.Pki <- annotatePeak(dba_KCl.Pki_Report, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+gene_KCl.Pki <- seq2gene(dba_KCl.Pki_Report, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego_KCl.Pki <- enrichGO(gene=gene_KCl.Pki, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+barplot(ego_KCl.Pki, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+plotAnnoPie(peakAnno_KCl.Pki) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+dba.plotMA(dba_TTX_low, bFlip=TRUE)
+peakAnno_TTX_low <- annotatePeak(dba_TTX_low_Report, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+gene_TTX_low <- seq2gene(dba_TTX_low_Report, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego_TTX_low <- enrichGO(gene=gene_TTX_low, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+barplot(ego_TTX_low, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+plotAnnoPie(peakAnno_TTX_low) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+dba.plotMA(dba_KCl_KCl.Pki)
+peakAnno_KCl_KCl.Pki <- annotatePeak(dba_KCL_KCl.Pki_Report, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+gene_KCl_KCl.Pki <- seq2gene(dba_KCL_KCl.Pki_Report, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego_KCl_KCl.Pki <- enrichGO(gene=gene_KCl_KCl.Pki, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+barplot(ego_KCl_KCl.Pki, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+plotAnnoPie(peakAnno_KCl_KCl.Pki) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
