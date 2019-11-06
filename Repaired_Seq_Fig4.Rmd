@@ -20,13 +20,282 @@ library("viridis")
 library("ggplot2")
 library("ggExtra")
 library("ggpmisc")
+library("ggpubr")
 
 
 
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 anno86 <- annoGR(EnsDb.Hsapiens.v86)
 
+load("repairseq_dbaV2.rdata")
 ```
+
+```{r}
+## A  
+## Histogram and box plot of distances from genome repair hotspot to sSNVs found in single post-mortem human neurons and ESC-iNs. 
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
+dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
+dba_1D <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D <- dba.analyze(dba_1D, method=DBA_DESEQ2)
+dba_1D_Report <- dba.report(dba_1D, contrast=1, th=1, bUsePval=TRUE)
+dba_1D_Common_HighlyConserved <- dba_1D_Report[abs(dba_1D_Report$Fold) < 1 & dba_1D_Report$`p-value` > .5]
+gr <- keepStandardChromosomes(dba_1D_Common_HighlyConserved, pruning.mode="coarse")
+dba_1D_Common_HighlyConserved_df<- as.data.frame(gr)
+
+write.table(dba_1D_Common_HighlyConserved_df, file="Repair_1D_HighlyConserved.bed", sep="\t", col.names = TRUE, row.names = FALSE)
+
+##split by factors
+## comvert to gramges
+
+```
+
+
+```{r}
+## C
+## Volcano plot of peaks that are gained and lost following treatment of neurons with NCS or H2O2.
+
+# New masks basic 1D Peaks Common across H1 and H9
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+dba_EdU_1Day_Damage_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("None","NCS"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_Damage_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_Damage_mask, merge="and")
+dba_Damage <- dba(DBAobject,dba_EdU_1Day_Damage_ESCin_mask)
+dba_Damage <- dba.contrast(dba_Damage, categories=DBA_TREATMENT, minMembers = 2)
+dba_Damage <- dba.analyze(dba_Damage, method=DBA_DESEQ2)
+
+load("dba_Damage.rda")
+
+NCS_vs_None_DE <- dba.report(dba_Damage, contrast=1, th=1, bUsePval = TRUE)
+
+
+
+NCS_vs_None_df <- as.data.frame(NCS_vs_None_DE)
+
+NCS_OE <- NCS_vs_None_df$p.value <= 0.05 
+
+NCS_vs_None_df$threshold <- NCS_OE 
+my_Colors <- c("#662d91","#1d8348")
+
+pdf("NCS_Treatment_vs_Control.pdf")
+ggplot(NCS_vs_None_df) +
+        geom_point(aes(x=Fold, y=-log10(p.value), colour=threshold),size=1, shape=16) +
+        ggtitle("NCS Treatment") +
+        xlab("log2 fold change") + 
+        ylab("-log10 FDR") +
+        #scale_y_continuous(limits = c(0,50)) +
+        theme(legend.position = "none",
+              plot.title = element_text(size = rel(1.5), hjust = 0.5),
+              axis.title = element_text(size = rel(1.25))) + theme_classic() + xlim(-6,6)
+dev.off()
+```
+
+```{r}
+write.table(NCS_vs_None_df, file="NCS_Peaks.bed", sep="\t", col.names = TRUE, row.names = FALSE)
+
+Walsh_hg38_forR <- read.csv("~/RepairedSeq/Walsh_hg38_forR.csv")
+
+write.table(Walsh_hg38_forR, file="Walsh_hg38_forR.bed", sep="\t", col.names = TRUE, row.names = FALSE)
+
+
+
+Walsh_1Dconserved_Closest <- read.delim("~/RepairedSeq/Walsh_1Dconserved_Closest_New.txt")
+
+Walsh_NCS_Closest <- read.delim("~/RepairedSeq/Walsh_NCS_Closest_New2.txt")
+
+#NCS_Gained <- (Walsh_NCS_Closest_All$Fold < 0 & Walsh_NCS_Closest_All$p.value <= 0.05)
+#NCS_Loss <- (Walsh_NCS_Closest_All$Fold > 0 & Walsh_NCS_Closest_All$p.value <= 0.05)
+#NCS_Constant <- (Walsh_NCS_Closest_All$p.value > 0.05)
+
+#Walsh_NCS_Closest_All$PeakClass[NCS_Gained] <- "Gained"
+#Walsh_NCS_Closest_All$PeakClass[NCS_Loss] <- "Lost"
+#Walsh_NCS_Closest_All$PeakClass[NCS_Constant] <- "Constant"
+
+Walsh_NCS_Closest_Modified <- subset(Walsh_NCS_Closest, Age.Group2 != "Disease")
+#Walsh_NCS_Closest_Modified2 <- subset(Walsh_NCS_Closest_Modified, PeakClass != "Constant")
+
+Walsh_NCS_CLosest_Mod2 <-  transform(Walsh_NCS_Closest_Modified, Age.Group2=factor(Age.Group2,levels=c("Infant","Adolescent","Adult","Aged")))
+#my_comparisons <- list(c("Gained", "Lost"))
+
+
+pdf("Walsh_sSNV_NCS_Gain_Loss.pdf", paper="USr")
+ggplot(Walsh_NCS_CLosest_Mod2,aes(y=Distance1, x=Direction, col=Direction), size=.5, shape="16") + geom_boxplot()  + theme_classic()  + scale_y_log10() + stat_compare_means()  + facet_wrap(~Age.Group2, nrow=1) + geom_jitter()#+ scale_color_manual(values=my_Colors) + scale_fill_manual(values=my_Colors)
+dev.off()
+
+Walsh_NCS_Closest_Modified_Disease <- subset(Walsh_NCS_Closest, Age.Group2 == "Disease")
+
+ggplot(Walsh_NCS_Closest,aes(y=Distance1, x=Diagnosis, col=Diagnosis), size=.5, shape="16") + geom_boxplot()  + theme_classic()  + scale_y_log10() + stat_compare_means()  + facet_wrap(~Age.Group, nrow=1) + geom_jitter()#+ scale_color_manual(values=my_Colors) + scale_fill_manual(values=my_Colors)
+
+
+
+
+
+Walsh_1Dconserved_Closest_Modified <- subset(Walsh_1Dconserved_Closest, Age.Group2 != c("Disease","Constant"))
+
+Walsh_1Dconserved_Closest_Mod2 <-  transform(Walsh_1Dconserved_Closest_Modified, Age.Group2=factor(Age.Group2,levels=c("Infant","Adolescent","Adult","Aged")))
+my_comparisons <- list( c("Infant", "Adolescent"), c("Infant", "Adult"), c("Infant", "Aged"), c("Adolescent","Adult"), c("Adolescent","Aged"), c("Adult","Aged"))
+
+pdf("Walsh_sSNV_1D_CommonPeaks.pdf", paper="USr")
+ggplot(Walsh_1Dconserved_Closest_Mod2,aes(y=Distance1, x=Age.Group2), size=.5, shape="16") + geom_boxplot()  + theme_classic()  + scale_y_log10() + geom_jitter() + stat_compare_means(comparisons=my_comparisons)
+dev.off()
+
+ggplot(Walsh_1Dconserved_Closest) + geom_histogram(aes(x=Distance.1, col=Age.Group2, fill = Age.Group2), position="dodge", bins=10) + xlim(0,100) + theme_classic() + xlab("Distance from sSNV to nearest Repair HotSpot (10 basepair bins)")
+
+ggplot(Walsh_1Dconserved_Closest) + geom_histogram(aes(x=Distance.1, col=Age.Group, fill = Age.Group), position="dodge", bins=1) + theme_classic() + xlab("Distance from sSNV to nearest Repair HotSpot (10 basepair bins)")
+
+ggplot(Walsh_NCS_Closest) + geom_histogram(aes(x=Distance1, col=Direction, fill = Direction), position="dodge") + theme_classic() #+ xlab("Distance from sSNV to nearest Repair HotSpot (10 basepair bins)")
+
+
+#ggplot(Walsh_NCS_Closest,aes(y=Distance1, x=Age, col=Direction), size=.5, shape="16") + geom_point()  + theme_classic() + facet_wrap(~Neuron, nrow=1)  + ylim(0,1000)# + stat_compare_means()  + facet_wrap(~Age.Group, nrow=1)
+
+
+df_NCS_vs_None_DE <- as.data.frame(NCS_vs_None_DE)
+df_NCS_vs_None_Loss <- df_NCS_vs_None_DE[df_NCS_vs_None_DE$Fold > 0,]
+df_NCS_vs_None_Gain <- df_NCS_vs_None_DE[df_NCS_vs_None_DE$Fold < 0,]
+
+gr_NCS_vs_None_Loss <- makeGRangesFromDataFrame(df_NCS_vs_None_Loss, keep.extra.columns = TRUE)
+gr_NCS_vs_None_Loss <- keepStandardChromosomes(gr_NCS_vs_None_Loss, pruning.mode="coarse")
+
+gr_NCS_vs_None_Gain <- makeGRangesFromDataFrame(df_NCS_vs_None_Gain, keep.extra.columns = TRUE)
+gr_NCS_vs_None_Gain <- keepStandardChromosomes(gr_NCS_vs_None_Gain, pruning.mode="coarse")
+
+
+bed_NCS_vs_None_Gain <- as.data.frame(gr_NCS_vs_None_Gain)
+bed_NCS_vs_None_Lost <- as.data.frame(gr_NCS_vs_None_Loss)
+
+
+
+
+```
+
+
+```{r}
+## D
+## Box plot of distances from gained and lost genome repair hotspots to sSNVs found in single post-mortem human neurons.
+Walsh_hg38_forR <- read.csv("~/RepairedSeq/Walsh_hg38_forR.csv")
+
+Walsh_Age <- split(Walsh_hg38_forR, Walsh_hg38_forR$Age.Group)
+Wlash_Age_Young <- Walsh_Age[[3]]
+Walsh_Age_Old <- Walsh_Age[[2]]
+Walsh_Age_Disease <- Walsh_Age[[1]]
+gr_Wlash_Age_Young  <- makeGRangesFromDataFrame(Wlash_Age_Young, keep.extra.columns = TRUE)
+gr_Walsh_Age_Old <-  makeGRangesFromDataFrame(Walsh_Age_Old, keep.extra.columns = TRUE)
+gr_Walsh_Age_Disease <-  makeGRangesFromDataFrame(Walsh_Age_Disease, keep.extra.columns = TRUE)
+
+Walsh_Diagnosis <- split(Walsh_hg38_forR, Walsh_hg38_forR$Diagnosis)
+Walsh_Diagnosis_CS <- Walsh_Diagnosis[[1]]
+Walsh_Diagnosis_None <- Walsh_Diagnosis[[2]]
+Walsh_Diagnosis_XP <- Walsh_Diagnosis[[3]]
+gr_Walsh_Diagnosis_CS <-  makeGRangesFromDataFrame(Walsh_Diagnosis_CS, keep.extra.columns = TRUE)
+gr_Walsh_Diagnosis_None <-  makeGRangesFromDataFrame(Walsh_Diagnosis_None, keep.extra.columns = TRUE)
+gr_Walsh_Diagnosis_XP <-  makeGRangesFromDataFrame(Walsh_Diagnosis_XP, keep.extra.columns = TRUE)
+
+Walsh_Region <- split(Walsh_hg38_forR, Walsh_hg38_forR$Region)
+Walsh_Region_DG <- Walsh_Region[[1]]
+Walsh_Region_PFC <- Walsh_Region[[2]]
+gr_Walsh_Region_DG <-  makeGRangesFromDataFrame(Walsh_Region_DG, keep.extra.columns = TRUE)
+gr_Walsh_Region_PFC <-  makeGRangesFromDataFrame(Walsh_Region_PFC, keep.extra.columns = TRUE)
+
+Walsh_All <- makeGRangesFromDataFrame(Walsh_hg38_forR, keep.extra.columns = TRUE)
+
+##NCS_Lost vs Walsh by age
+
+NCS_Lost_Young <- data.frame(distanceToNearest(gr_NCS_vs_None_Loss, gr_Wlash_Age_Young))
+NCS_Lost_Old <- data.frame(distanceToNearest(gr_NCS_vs_None_Loss, gr_Walsh_Age_Old))
+#NCS_Disease <- data.frame(distanceToNearest(gr_NCS_vs_None_Loss, gr_Walsh_Age_Disease))
+
+NCS_Lost_Young$Class <- "Young"
+NCS_Lost_Old$Class <- "Old"
+#NCS_Disease$Class <- "Disease"
+
+NCS_Lost_Age <- rbind(NCS_Lost_Young,NCS_Lost_Old)
+
+ggplot(NCS_Lost_Age,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_y_log10() + stat_compare_means()
+
+
+##NCS_Gained vs Walsh by age
+
+NCS_Gain_Young <- data.frame(distanceToNearest(gr_NCS_vs_None_Gain, gr_Wlash_Age_Young))
+NCS_Gain_Old <- data.frame(distanceToNearest(gr_NCS_vs_None_Gain, gr_Walsh_Age_Old))
+#NCS_Disease <- data.frame(distanceToNearest(gr_NCS_vs_None_Gain, gr_Walsh_Age_Disease))
+
+NCS_Gain_Young$Class <- "Young"
+NCS_Gain_Old$Class <- "Old"
+#NCS_Disease$Class <- "Disease"
+
+ggplot(NCS_Gain_Age,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_y_log10() + stat_compare_means()
+
+NCS_Gain_Age <- rbind(NCS_Gain_Young,NCS_Gain_Old)
+
+ggplot(NCS_Gain_Age,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot()  + geom_jitter() + theme_classic() + scale_y_log10() + stat_compare_means()
+ggplot(NCS_Gain_Age) + geom_histogram(aes(x=distance, fill=Class), bins=100) + theme_classic() + scale_y_log10()
+
+
+ggplot(NCS_Lost_Age,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot()  + geom_jitter() + theme_classic() + scale_y_log10() + stat_compare_means()
+ggplot(NCS_Lost_Age) + geom_histogram(aes(x=distance, fill=Class), bins=100) + theme_classic() + scale_y_log10()
+
+
+
+##NCS_Lost vs Walsh by age
+
+NCS_Gain_Walsh <- data.frame(distanceToNearest(Walsh_All, gr_NCS_vs_None_Gain))
+NCS_Lost_Walsh <- data.frame(distanceToNearest(Walsh_All, gr_NCS_vs_None_Loss))
+#NCS_Disease <- data.frame(distanceToNearest(gr_NCS_vs_None_Loss, gr_Walsh_Age_Disease))
+
+NCS_Gain_Walsh$Class <- "Gained"
+NCS_Lost_Walsh$Class <- "Lost"
+#NCS_Disease$Class <- "Disease"
+
+NCS_Walsh_GainLoss <- rbind(NCS_Gain_Walsh,NCS_Lost_Walsh)
+
+ggplot(NCS_Walsh_GainLoss,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot() + geom_jitter() + theme_classic() + stat_compare_means()
+ggplot(NCS_Walsh_GainLoss) + geom_histogram(aes(x=distance, fill=Class), bins=100) + theme_classic() + scale_y_log10() + scale_x_log10()
+
+
+
+```
+
+
+```{r}
+## Other
+## Motifs for peaks gained/lost in NCS/H2O2
+
+## grange of peaks gained/lost with NCS/H2O2
+gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
+peaksWithSequences <- getAllPeakSequence(gr, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences, "RepairSeq_1D_CommonPeaks_HighlyConserved_All.fa")
+## Run MEME
+
+
+## Chromatin context for peaks gained/lost in NCS/H2O2
+
+
+
+## Length vs damage? (do long genes w/ hotspots preferentially lose them?)
+
+
+
+## GO terms for genes w/ net loss of peaks (normalize to no change)
+
+
+
+## GO terms for genes w/ net gain of peaks (normalize to no change)
+
+
+
+## GO terms for Walsh sSNVs
+
+
+
+##  Our sSNV data COSMIC signatures
+
+```
+
+
 
 ```{r}
 ### Load new dba and bcb objects.

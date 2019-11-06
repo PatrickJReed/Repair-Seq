@@ -28,6 +28,77 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 
 ```
 
+
+```{r}
+## A
+## Sequence motifs identified both de novo and predicted as enriched in genome repair hotspots relative to randomly generated peaks.
+
+
+```
+
+
+
+
+```{r}
+## B
+## DNA shape analysis predictions for sequences found in genome repair hotspots.
+
+
+
+```
+
+
+
+```{r}
+## C
+## Histograms of distance from genome repair hotspots to H3K27Ac, ATAC, H3K27Ac & ATAC, H3K9me3, or CTCF peaks.
+
+
+
+
+```
+
+
+```{r}
+## D
+## Scatter plots: Axis: H3K27Ac/H3K9me3 or H3K27Ac/ATAC points/intensity=salmon repair classes & genome repair hotspot groups
+
+
+
+
+```
+
+
+```{r}
+## F
+## Histograms of pairwise distance (CTCF, ATAC, H3K9me3, H3K27Ac)
+
+
+
+
+```
+
+
+```{r}
+## Other
+## Box plots of Salmon Repair/Peaks Repair vs gene TPMs for H3K27Ac & H3K9me3
+
+
+
+## Motifs on EdC vs EdU vs EdC+EdU
+
+
+
+## % GC of peaks (EdU vs EdC)
+
+
+
+##  Pqsfinder by genome annotation
+```
+
+
+
+
 ```{r}
 ### Load new dba and bcb objects.
 load("repairseq_dbaV2.rdata")

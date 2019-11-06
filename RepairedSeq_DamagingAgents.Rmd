@@ -34,12 +34,13 @@ load("repairseq_dbaV2.rdata")
 dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
 dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
 dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
-dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
-dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
-dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
-dba_1D <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
-dba_1D <- dba.analyze(dba_1D, method=DBA_DESEQ2)
-dba_1D_Report <- dba.report(dba_1D, contrast=1, th=1, bUsePval=TRUE)
-dba_1D_Common <- dba_1D_Report[dba_1D_Report$`p-value` > .05]
+dba_EdU_1Day_Damage_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("None","NCS"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_Damage_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_Damage_mask, merge="and")
+dba_Damage <- dba(DBAobject,dba_EdU_1Day_Damage_ESCin_mask)
+dba_Damage <- dba.contrast(dba_Damage, categories=DBA_TREATMENT, minMembers = 2)
+dba_Damage <- dba.analyze(dba_Damage, method=DBA_DESEQ2)
+dba_Damage_Report_NCS_None <- dba.report(dba_Damage, contrast=1, th=.05, bUsePval=TRUE)
+
+dba.plotVolcano(dba_Damage, bUsePval = TRUE, th = .01)
 
 ```

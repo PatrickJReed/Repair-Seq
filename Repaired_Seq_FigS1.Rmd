@@ -49,7 +49,8 @@ dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
 dba_1D <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
 dba_1D <- dba.analyze(dba_1D, method=DBA_DESEQ2)
 dba_1D_Report <- dba.report(dba_1D, contrast=1, th=1, bUsePval=TRUE)
-dba_1D_Common <- dba_1D_Report[dba_1D_Report$`p-value` > .05]
+dba_1D_Common<- dba_1D_Report[abs(dba_1D_Report$Fold) < 1 & dba_1D_Report$`p-value` > .5]
+gr <- keepStandardChromosomes(dba_1D_Common, pruning.mode="coarse")
 
 #Annotate 1D peaks and plot genomic distribition
 peakAnno_1D_Common <- annotatePeak(dba_1D_Common, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
@@ -58,32 +59,65 @@ peakAnno_1D_Common <- annotatePeak(dba_1D_Common, tssRegion=c(-3000, 3000),TxDb=
 ```{r}
 #(B) Reproducibility between biological replicates of H1 and H9 ESC-iNs.
 
-df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Report)
+#df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Report)
 ##Convert Diffbind object to GRanges object
-gr <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
-gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
-gr <- dropSeqlevels(gr,  c("chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+#gr <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
+#gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
 
-H9 <- dba.peakset(dba_1Day_EdU_None_ESCin, 1:2, minOverlap=1, bRetrieve=TRUE)
-H1 <- dba.peakset(dba_1Day_EdU_None_ESCin, 3:4, minOverlap=1, bRetrieve=TRUE)
+H9 <- dba.peakset(dba_1Day_EdU_None_ESCin, 1:2, minOverlap=1, bRetrieve=TRUE, filter=1)
+H1 <- dba.peakset(dba_1Day_EdU_None_ESCin, 3:4, minOverlap=1, bRetrieve=TRUE, filter=1)
+H9_df <- as.data.frame(H9)
+H1_df <- as.data.frame(H1)
+H9_df$H9_average <- rowMeans(H9_df[,6:7])
+H1_df$H1_average <- rowMeans(H1_df[,6:7])
+H9_subset_df <- H9_df[H9_df$H9_average > 1,]
+H1_subset_df <- H1_df[H1_df$H1_average > 1,]
+H9_subset_gr <- makeGRangesFromDataFrame(H9_subset_df,keep.extra.columns = TRUE)
+H1_subset_gr <- makeGRangesFromDataFrame(H1_subset_df,keep.extra.columns = TRUE)
+ggplot(H1_df) + geom_histogram(aes(x=H1_df$H1_average), bins=100) + scale_x_log10() 
+ggplot(H9_df) + geom_histogram(aes(x=H9_df$H9_average), bins=100) + scale_x_log10() 
+makeVennDiagram(Peaks=list(H1_subset_gr, H9_subset_gr),NameOfPeaks=c("H1", "H9"))
 
-df <- as.data.frame(H9)
-df2 <- as.data.frame(H1)
-df3 <- as.data.frame(gr)
+H9_A <- dba.peakset(dba_1Day_EdU_None_ESCin, 1, minOverlap=1, bRetrieve=TRUE, filter=1)
+H9_B <- dba.peakset(dba_1Day_EdU_None_ESCin, 2, minOverlap=1, bRetrieve=TRUE, filter=1)
+H9_A_df <- as.data.frame(H9_A)
+H9_B_df <- as.data.frame(H9_B)
+H9_A_subset_df <- H9_A_df[H9_A_df$Score > 1,]
+H9_B_subset_df <- H9_B_df[H9_B_df$Score > 1,]
+H9_A_subset_gr <- makeGRangesFromDataFrame(H9_A_subset_df,keep.extra.columns = TRUE)
+H9_B_subset_gr <- makeGRangesFromDataFrame(H9_B_subset_df,keep.extra.columns = TRUE)
+makeVennDiagram(Peaks=list(H9_A_subset_gr, H9_B_subset_gr),NameOfPeaks=c("H9_A", "H9_B"))
+
+
+
+H1_A <- dba.peakset(dba_1Day_EdU_None_ESCin, 3, minOverlap=1, bRetrieve=TRUE, filter=1)
+H1_B <- dba.peakset(dba_1Day_EdU_None_ESCin, 4, minOverlap=1, bRetrieve=TRUE, filter=1)
+H1_A_df <- as.data.frame(H1_A)
+H1_B_df <- as.data.frame(H1_B)
+H1_A_subset_df <- H1_A_df[H1_A_df$Score > 1,]
+H1_B_subset_df <- H1_B_df[H1_B_df$Score > 1,]
+H1_A_subset_gr <- makeGRangesFromDataFrame(H1_A_subset_df,keep.extra.columns = TRUE)
+H1_B_subset_gr <- makeGRangesFromDataFrame(H1_B_subset_df,keep.extra.columns = TRUE)
+makeVennDiagram(Peaks=list(H1_A_subset_gr, H1_B_subset_gr),NameOfPeaks=c("H1_A", "H1_B"))
+
+
+
+
+#df3 <- as.data.frame(gr)
 my.formula <- y ~ x
-pdf("H9_Replicate_Correlation.pdf")
-ggplot(df, aes(x=H9, y=H9.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H9 ESC-iN Replicate 1") + ylab("H9 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
-dev.off()
+#pdf("H9_Replicate_Correlation.pdf")
+ggplot(H9_subset_df, aes(x=H9, y=H9.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H9 ESC-iN Replicate 1") + ylab("H9 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
+#dev.off()
 
-pdf("H1_Replicate_Correlation.pdf")
+#pdf("H1_Replicate_Correlation.pdf")
 my.formula <- y ~ x
-ggplot(df2, aes(x=H1, y=H1.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1 ESC-iN Replicate 1") + ylab("H1 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
-dev.off()
+ggplot(H1_subset_df, aes(x=H1, y=H1.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1 ESC-iN Replicate 1") + ylab("H1 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
+#dev.off()
 
-pdf("H1_H9_Correlation.pdf")
+#pdf("H1_H9_Correlation.pdf")
 my.formula <- y ~ x
 ggplot(df, aes(x=H1_Average, y=H9_Average)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1") + ylab("H9") + xlim(0,500) + ylim(0,500)
-dev.off()
+#dev.off()
 ```
 
 

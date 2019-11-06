@@ -1,0 +1,156 @@
+---
+title: "Repaired_Seq_Motifs"
+output: html_document
+---
+
+```{r}
+library("DiffBind")
+library("ChIPpeakAnno")
+library("ChIPseeker")
+library("pqsfinder")
+library("motifRG")
+library("BSgenome.Hsapiens.UCSC.hg38")
+library("EnsDb.Hsapiens.v86")
+library("TxDb.Hsapiens.UCSC.hg38.knownGene")
+library("clusterProfiler")
+library("ReactomePA")
+library("org.Hs.eg.db")
+library("viridis")
+library("ggplot2")
+library("ggExtra")
+library("ggpmisc")
+library("rGADEM")
+library("MotIV")
+
+
+
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+anno86 <- annoGR(EnsDb.Hsapiens.v86)
+
+```
+
+```{r}
+### Load new dba and bcb objects.
+load("repairseq_dbaV2.rdata")
+#load("repairseq_bcbV2.rda")
+
+# New masks basic 1D Peaks Common across H1 and H9
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
+dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
+dba_1D <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D <- dba.analyze(dba_1D, method=DBA_DESEQ2)
+dba_1D_Report <- dba.report(dba_1D, contrast=1, th=1, bUsePval=TRUE)
+dba_1D_Common_HighlyConserved <- dba_1D_Report[abs(dba_1D_Report$Fold) < 1 & dba_1D_Report$`p-value` > .5]
+gr <- keepStandardChromosomes(dba_1D_Common_HighlyConserved, pruning.mode="coarse")
+df <- as.data.frame(gr)
+
+peakAnno_1D_Common_HighlyConserved  <- annotatePeak(gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+peakAnno_DF <- as.data.frame(peakAnno_1D_Common_HighlyConserved)
+write.table(peakAnno_DF, file="H1H9_1D_Common_Peaks_Annotated.bed", sep="\t", col.names = TRUE, row.names = FALSE)
+
+write.table(df, file="H1H9_1D_Common_Peaks.bed", sep="\t", col.names = TRUE, row.names = FALSE)
+
+
+covplot(gr, weightCol="Conc")
+
+```
+
+```{r}
+peakAnno_1D_Common_HighlyConserved  <- annotatePeak(dba_1D_Common_HighlyConserved, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+peakAnno_DF <- as.data.frame(peakAnno_1D_Common_HighlyConserved)
+peakAnno_DF_genic <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$genic == TRUE,]
+peakAnno_DF_Intergenic <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$Intergenic == TRUE,]
+peakAnno_DF_Promoter <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$Promoter == TRUE,]
+peakAnno_DF_fiveUTR <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$fiveUTR == TRUE,]
+peakAnno_DF_threeUTR <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$threeUTR == TRUE,]
+peakAnno_DF_Exon <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$Exon == TRUE,]
+peakAnno_DF_Intron <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$Intron == TRUE,]
+peakAnno_DF_distal_intergenic <- peakAnno_DF[peakAnno_1D_Common_HighlyConserved@detailGenomicAnnotation$distal_intergenic == TRUE,]
+
+
+gr <- makeGRangesFromDataFrame(peakAnno_DF,keep.extra.columns = TRUE)  
+gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
+#gr <- dropSeqlevels(gr,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences <- getAllPeakSequence(gr, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences, "RepairSeq_1D_CommonPeaks_HighlyConserved_All.fa")
+
+
+gr_genic <- makeGRangesFromDataFrame(peakAnno_DF_genic,keep.extra.columns = TRUE)  
+gr_genic <- keepStandardChromosomes(gr_genic, pruning.mode="coarse") ##Remove dumb contigs
+gr_genic <- dropSeqlevels(gr_genic,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_genic <- getAllPeakSequence(gr_genic, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_genic, "RepairSeq_1D_CommonPeaks_HighlyConserved_genic.fa")
+
+gr_Intergenic <- makeGRangesFromDataFrame(peakAnno_DF_Intergenic,keep.extra.columns = TRUE)  
+gr_Intergenic <- keepStandardChromosomes(gr_Intergenic, pruning.mode="coarse") ##Remove dumb contigs
+gr_Intergenic <- dropSeqlevels(gr_Intergenic, c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_Intergenic <- getAllPeakSequence(gr_Intergenic, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_Intergenic, "RepairSeq_1D_CommonPeaks_HighlyConserved_Intergenic.fa")
+
+gr_Promoter <- makeGRangesFromDataFrame(peakAnno_DF_Promoter,keep.extra.columns = TRUE)  
+gr_Promoter <- keepStandardChromosomes(gr_Promoter, pruning.mode="coarse") ##Remove dumb contigs
+gr_Promoter <- dropSeqlevels(gr_Promoter,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_Promoter <- getAllPeakSequence(gr_Promoter, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_Promoter, "RepairSeq_1D_CommonPeaks_HighlyConserved_Promoter.fa")
+
+gr_fiveUTR <- makeGRangesFromDataFrame(peakAnno_DF_fiveUTR,keep.extra.columns = TRUE)  
+gr_fiveUTR <- keepStandardChromosomes(gr_fiveUTR, pruning.mode="coarse") ##Remove dumb contigs
+gr_fiveUTR <- dropSeqlevels(gr_fiveUTR,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_fiveUTR <- getAllPeakSequence(gr_fiveUTR, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_fiveUTR, "RepairSeq_1D_CommonPeaks_HighlyConserveds_fiveUTR.fa")
+
+gr_threeUTR <- makeGRangesFromDataFrame(peakAnno_DF_threeUTR,keep.extra.columns = TRUE)  
+gr_threeUTR <- keepStandardChromosomes(gr_threeUTR, pruning.mode="coarse") ##Remove dumb contigs
+gr_threeUTR <- dropSeqlevels(gr_threeUTR,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_threeUTR <- getAllPeakSequence(gr_threeUTR, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_threeUTR, "RepairSeq_1D_CommonPeaks_HighlyConserved_threeUTR.fa")
+
+gr_Exon <- makeGRangesFromDataFrame(peakAnno_DF_Exon,keep.extra.columns = TRUE)  
+gr_Exon <- keepStandardChromosomes(gr_Exon, pruning.mode="coarse") ##Remove dumb contigs
+gr_Exon <- dropSeqlevels(gr_Exon,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_Exon <- getAllPeakSequence(gr_Exon, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_Exon, "RepairSeq_1D_CommonPeaks_HighlyConserved_Exon.fa")
+
+gr_Intron <- makeGRangesFromDataFrame(peakAnno_DF_Intron,keep.extra.columns = TRUE)  
+gr_Intron <- keepStandardChromosomes(gr_Intron, pruning.mode="coarse") ##Remove dumb contigs
+gr_Intron <- dropSeqlevels(gr_Intron,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_Intron <- getAllPeakSequence(gr_Intron, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_Intron, "RepairSeq_1D_CommonPeaks_HighlyConserved_Intron.fa")
+
+gr_distal_intergenic <- makeGRangesFromDataFrame(peakAnno_DF_distal_intergenic,keep.extra.columns = TRUE)  
+gr_distal_intergenic <- keepStandardChromosomes(gr_distal_intergenic, pruning.mode="coarse") ##Remove dumb contigs
+gr_distal_intergenic <- dropSeqlevels(gr_distal_intergenic,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+
+peaksWithSequences_distal_intergenic <- getAllPeakSequence(gr_distal_intergenic, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences_distal_intergenic, "RepairSeq_1D_CommonPeaks_HighlyConserved_distal_intergenic.fa")
+```
+
+```{r}
+df_1d_H1_H9 <- as.data.frame(dba_1D_Common_HighlyConserved)
+##Convert Diffbind object to GRanges object
+gr <- makeGRangesFromDataFrame(df_1d_H1_H9,keep.extra.columns = TRUE)  
+gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
+gr <- dropSeqlevels(gr,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
+#df <- as.data.frame(gr)
+
+peaksWithSequences <- getAllPeakSequence(gr, upstream=0, downstream=0, genome=Hsapiens)
+write2FASTA(peaksWithSequences, "RepairSeq_1D_CommonPeaks_HighlyConserved.fa")
+
+
+###1D peaks promoter region
+```
+

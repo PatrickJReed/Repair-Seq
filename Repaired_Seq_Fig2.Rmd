@@ -29,13 +29,13 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 ```
 
 ```{r}
-bcbioRNASeq::prepareRNASeqTemplate()
+bcbioRNASeq::prepareTemplate(package = "bcbioRNASeq")
 source("_setup.R")
 
 # Load object ==================================================================
 repair_bcb_name <- load(params$bcb_file)
 repair_bcb <- get(repair_bcb_name, inherits = FALSE)
-stopifnot(is(repair_bcb, "bcbioRNASeq"))
+#stopifnot(is(repair_bcb, "bcbioRNASeq"))
 invisible(validObject(repair_bcb))
 print(repair_bcb)
 ```
@@ -52,6 +52,8 @@ sample_data
 ```
 
 ```{r counts}
+repair_bcb <- repairseq_bcbV2
+
 # Raw counts (don't use for plotting)
 repair_raw_counts <- counts(repair_bcb, normalized = FALSE)
 # DESeq2 normalized counts

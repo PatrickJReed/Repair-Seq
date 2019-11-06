@@ -19,6 +19,7 @@ library("viridis")
 library("ggplot2")
 library("ggExtra")
 library("ggpmisc")
+library("VariantAnnotation")
 
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 anno86 <- annoGR(EnsDb.Hsapiens.v86)
@@ -28,22 +29,268 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 ```{r}
 ### Load new dba and bcb objects.
 load("repairseq_dbaV2.rdata")
-#load("repairseq_bcbV2.rda")
 
-# New masks basic 1D Peaks Common across H1 and H9
-dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
-dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
-dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
-dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
-dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
-dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
-dba_1D <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
-dba_1D <- dba.analyze(dba_1D, method=DBA_DESEQ2)
-dba_1D_Report <- dba.report(dba_1D, contrast=1, th=1, bUsePval=TRUE)
-dba_1D_Common <- dba_1D_Report[dba_1D_Report$`p-value` > .05]
+##H9 Somatic SNV analysis
+
+dba_H9_mask <- dba.mask(DBAobject,DBA_ID, c("H9"))
+dba_H9_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H9_mask, merge="and")
+dba_H9_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_H9_EdU_mask, merge="and")
+dba_H9_EdU_1Day_None_Dox42_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("None","Dox42"),mask=dba_H9_EdU_1Day_mask, merge="and")
+dba_H9_EdU_1Day_None_Dox42_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_H9_EdU_1Day_None_Dox42_mask, merge="and")
+dba_H9_1D_EdU_Dox42 <- dba(DBAobject,dba_H9_EdU_1Day_None_Dox42_ESCin_mask)
+dba_H9_1D_EdU_Dox42 <- dba.contrast(dba_H9_1D_EdU_Dox42, categories=DBA_TREATMENT, minMembers = 2)
+dba_H9_1D_EdU_Dox42 <- dba.analyze(dba_H9_1D_EdU_Dox42, method=DBA_DESEQ2)
+
+dba_H9_1D_EdU_Dox42_Report <- dba.report(dba_H9_1D_EdU_Dox42, contrast=1, th=1, bUsePval=TRUE)
+dba_H9_1D_EdU_Dox42_Common <- dba_H9_1D_EdU_Dox42_Report[dba_H9_1D_EdU_Dox42_Report$`p-value` > .5 & abs(dba_H9_1D_EdU_Dox42_Report$Fold) < 1]
+
+df_H9_1D_EdU_Dox42_Common <- as.data.frame(dba_H9_1D_EdU_Dox42_Common)
+gr_H9_1D_EdU_Dox42_Common <- makeGRangesFromDataFrame(df_H9_1D_EdU_Dox42_Common,keep.extra.columns = TRUE)  
+gr_H9_1D_EdU_Dox42_Common <- keepStandardChromosomes(gr_H9_1D_EdU_Dox42_Common, pruning.mode="coarse") ##Remove dumb contigs
+df_H9_1D_EdU_Dox42_Common <- as.data.frame(gr_H9_1D_EdU_Dox42_Common)
+write.table(df_H9_1D_EdU_Dox42_Common, file="dba_H9_Dox42_Common.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+dba_H9_1D_EdU_Dox42_Report_DE <- dba.report(dba_H9_1D_EdU_Dox42, contrast=1, th=.05, bUsePval= TRUE)
+df_H9_1D_EdU_Dox42_Report_DE <- as.data.frame(dba_H9_1D_EdU_Dox42_Report_DE)
+df_H9_1D_EdU_Dox42_Report_Loss <- df_H9_1D_EdU_Dox42_Report_DE[df_H9_1D_EdU_Dox42_Report_DE$Fold > 0,]
+df_H9_1D_EdU_Dox42_Report_Gain <- df_H9_1D_EdU_Dox42_Report_DE[df_H9_1D_EdU_Dox42_Report_DE$Fold < 0,]
+
+gr_H9_1D_EdU_Dox42_Report_Loss <- makeGRangesFromDataFrame(df_H9_1D_EdU_Dox42_Report_Loss, keep.extra.columns = TRUE)  
+gr_H9_1D_EdU_Dox42_Report_Loss <- keepStandardChromosomes(gr_H9_1D_EdU_Dox42_Report_Loss, pruning.mode="coarse") ##Remove dumb contigs
+df_H9_1D_EdU_Dox42_Report_Loss <- as.data.frame(gr_H9_1D_EdU_Dox42_Report_Loss)
+write.table(df_H9_1D_EdU_Dox42_Report_Loss, file="dba_H9_Dox42_Loss.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+gr_H9_1D_EdU_Dox42_Report_Gain <- makeGRangesFromDataFrame(df_H9_1D_EdU_Dox42_Report_Gain, keep.extra.columns = TRUE)  
+gr_H9_1D_EdU_Dox42_Report_Gain <- keepStandardChromosomes(gr_H9_1D_EdU_Dox42_Report_Gain, pruning.mode="coarse") ##Remove dumb contigs
+df_H9_1D_EdU_Dox42_Report_Gain <- as.data.frame(gr_H9_1D_EdU_Dox42_Report_Gain)
+write.table(df_H9_1D_EdU_Dox42_Report_Gain, file="dba_H9_Dox42_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+
+##H1 Somatic SNV analysis
+
+
+dba_H1_mask <- dba.mask(DBAobject,DBA_ID, c("H1"))
+dba_H1_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1_mask, merge="and")
+dba_H1_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_H1_EdU_mask, merge="and")
+dba_H1_EdU_1Day_None_Dox42_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("None","Dox42"),mask=dba_H1_EdU_1Day_mask, merge="and")
+dba_H1_EdU_1Day_None_Dox42_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_H1_EdU_1Day_None_Dox42_mask, merge="and")
+dba_H1_1D_EdU_Dox42 <- dba(DBAobject,dba_H1_EdU_1Day_None_Dox42_ESCin_mask)
+dba_H1_1D_EdU_Dox42 <- dba.contrast(dba_H1_1D_EdU_Dox42, categories=DBA_TREATMENT, minMembers = 2)
+dba_H1_1D_EdU_Dox42 <- dba.analyze(dba_H1_1D_EdU_Dox42, method=DBA_DESEQ2)
+
+dba_H1_1D_EdU_Dox42_Report <- dba.report(dba_H1_1D_EdU_Dox42, contrast=1, th=1, bUsePval=TRUE)
+dba_H1_1D_EdU_Dox42_Common <- dba_H1_1D_EdU_Dox42_Report[dba_H1_1D_EdU_Dox42_Report$`p-value` > .5 & abs(dba_H1_1D_EdU_Dox42_Report$Fold) < 1]
+
+df_H1_1D_EdU_Dox42_Common <- as.data.frame(dba_H1_1D_EdU_Dox42_Common)
+gr_H1_1D_EdU_Dox42_Common <- makeGRangesFromDataFrame(df_H1_1D_EdU_Dox42_Common,keep.extra.columns = TRUE)  
+gr_H1_1D_EdU_Dox42_Common <- keepStandardChromosomes(gr_H1_1D_EdU_Dox42_Common, pruning.mode="coarse") ##Remove dumb contigs
+df_H1_1D_EdU_Dox42_Common <- as.data.frame(gr_H1_1D_EdU_Dox42_Common)
+write.table(df_H1_1D_EdU_Dox42_Common, file="dba_H1_Dox42_Common.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+dba_H1_1D_EdU_Dox42_Report_DE <- dba.report(dba_H1_1D_EdU_Dox42, contrast=1, th=.05, bUsePval= TRUE)
+df_H1_1D_EdU_Dox42_Report_DE <- as.data.frame(dba_H1_1D_EdU_Dox42_Report_DE)
+df_H1_1D_EdU_Dox42_Report_Loss <- df_H1_1D_EdU_Dox42_Report_DE[df_H1_1D_EdU_Dox42_Report_DE$Fold < 0,]
+df_H1_1D_EdU_Dox42_Report_Gain <- df_H1_1D_EdU_Dox42_Report_DE[df_H1_1D_EdU_Dox42_Report_DE$Fold > 0,]
+
+gr_H1_1D_EdU_Dox42_Report_Loss <- makeGRangesFromDataFrame(df_H1_1D_EdU_Dox42_Report_Loss, keep.extra.columns = TRUE)  
+gr_H1_1D_EdU_Dox42_Report_Loss <- keepStandardChromosomes(gr_H1_1D_EdU_Dox42_Report_Loss, pruning.mode="coarse") ##Remove dumb contigs
+df_H1_1D_EdU_Dox42_Report_Loss <- as.data.frame(gr_H1_1D_EdU_Dox42_Report_Loss)
+write.table(df_H1_1D_EdU_Dox42_Report_Loss, file="dba_H1_Dox42_Loss.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+gr_H1_1D_EdU_Dox42_Report_Gain <- makeGRangesFromDataFrame(df_H1_1D_EdU_Dox42_Report_Gain, keep.extra.columns = TRUE)  
+gr_H1_1D_EdU_Dox42_Report_Gain <- keepStandardChromosomes(gr_H1_1D_EdU_Dox42_Report_Gain, pruning.mode="coarse") ##Remove dumb contigs
+df_H1_1D_EdU_Dox42_Report_Gain <- as.data.frame(gr_H1_1D_EdU_Dox42_Report_Gain)
+write.table(df_H1_1D_EdU_Dox42_Report_Gain, file="dba_H1_Dox42_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+
+p = dba.plotVolcano(dba_H9_1D_EdU_Dox42, bFlip = TRUE)
+
+p + theme_classic()
 
 ```
+
 ```{r}
+idx1 <- indexTabix("H1-ensemble-annotated_3_Callers.vcf.gz", "vcf")
+tab1 <- TabixFile("H1-ensemble-annotated_3_Callers.vcf.gz", idx1)
+vcf_h1 <- readVcf("H1-ensemble-annotated_3_Callers.vcf.gz", "hg38", row.names=FALSE)
+
+idx2 <- indexTabix("H9-ensemble-annotated_3_Callers.vcf.gz", "vcf")
+tab2 <- TabixFile("H9-ensemble-annotated_3_Callers.vcf.gz", idx2)
+vcf_h9 <- readVcf("H9-ensemble-annotated_3_Callers.vcf.gz", "hg38", row.names=FALSE)
+
+pdf("D42_Somatic_SNVs_H1_Peaks_Overlap.pdf")
+res <- makeVennDiagram(Peaks=list(vcf_h1@rowRanges, gr_H1_1D_EdU_Dox42_Common, gr_H1_1D_EdU_Dox42_Report_Gain,gr_H1_1D_EdU_Dox42_Report_Loss),NameOfPeaks=c("H1_sSNVs", "H1_commonPeaks", "H1_peaksGained","H1_peaksLost"))
+dev.off()
+
+pdf("D42_Somatic_SNVs_H9_Peaks_Overlap.pdf")
+res2 <- makeVennDiagram(Peaks=list(vcf_h9@rowRanges, gr_H9_1D_EdU_Dox42_Common, gr_H9_1D_EdU_Dox42_Report_Gain,gr_H9_1D_EdU_Dox42_Report_Loss),NameOfPeaks=c("H9_sSNVs", "H9_commonPeaks", "H9_peaksGained","H9_peaksLost"))
+dev.off()
+
+pdf("Walsh_Somatic_SNVs_H9_Peaks_Overlap.pdf")
+res2 <- makeVennDiagram(Peaks=list(gr_Walsh, gr_H9_1D_EdU_Dox42_Common, gr_H9_1D_EdU_Dox42_Report_Gain,gr_H9_1D_EdU_Dox42_Report_Loss),NameOfPeaks=c("Walsh_sSNVs", "H9_commonPeaks", "H9_peaksGained","H9_peaksLost"))
+dev.off()
 
 ```
 
+```{r}
+H1_test1 <- data.frame(distanceToNearest(vcf_h1@rowRanges, gr_H1_1D_EdU_Dox42_Common))
+H1_test2 <- data.frame(distanceToNearest(vcf_h1@rowRanges, gr_H1_1D_EdU_Dox42_Report_Gain))
+H1_test3 <- data.frame(distanceToNearest(vcf_h1@rowRanges, gr_H1_1D_EdU_Dox42_Report_Loss))
+H1_test1$Class <- "Common"
+H1_test2$Class <- "Gain"
+H1_test3$Class <- "Lost"
+H1_mrg <- rbind(H1_test1,H1_test2,H1_test3)
+my_comparisons <- list( c("Common", "Gain"), c("Gain", "Lost"), c("Common", "Lost") )
+pdf("D42_Somatic_SNVs_distance_to_peaks_H1.pdf")
+ggplot(H1_mrg,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot()  + stat_compare_means(comparisons = my_comparisons) + geom_jitter() + theme_classic() + scale_y_log10() + ylab("sSNV Distance to Nearest Peak")
+dev.off()
+```
+
+```{r}
+H9_test1 <- data.frame(distanceToNearest(vcf_h9@rowRanges, gr_H9_1D_EdU_Dox42_Common))
+H9_test2 <- data.frame(distanceToNearest(vcf_h9@rowRanges, gr_H9_1D_EdU_Dox42_Report_Gain))
+H9_test3 <- data.frame(distanceToNearest(vcf_h9@rowRanges, gr_H9_1D_EdU_Dox42_Report_Loss))
+H9_test1$Class <- "Common"
+H9_test2$Class <- "Gain"
+H9_test3$Class <- "Lost"
+H9_mrg <- rbind(H9_test1,H9_test2,H9_test3)
+my_comparisons <- list( c("Common", "Gain"), c("Gain", "Lost"), c("Common", "Lost") )
+pdf("D42_Somatic_SNVs_distance_to_peaks_H9.pdf")
+ggplot(H9_mrg,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot()  + stat_compare_means(comparisons = my_comparisons) + geom_jitter() + theme_classic() + scale_y_log10() + ylab("sSNV Distance to Nearest Peak")
+dev.off()
+```
+
+
+```{r}
+pdf("D42_Somatic_SNVs_distance_to_peaks_Density_H1.pdf")
+ggplot(H1_mrg, aes(distance, color=Class, fill=Class)) + geom_density(alpha = 0.1) + theme_classic() + scale_x_log10()
+dev.off()
+pdf("D42_Somatic_SNVs_distance_to_peaks_Density_H9.pdf")
+ggplot(H9_mrg, aes(distance, color=Class, fill=Class)) + geom_density(alpha = 0.1) + theme_classic() + scale_x_log10()
+dev.off()
+```
+
+
+```{r}
+Walsh_hg38_forR <- read.csv("~/RepairedSeq/Walsh_hg38_forR.csv")
+
+gr_Walsh <- makeGRangesFromDataFrame(Walsh_hg38_forR, keep.extra.columns = TRUE)  
+gr_Walsh <- keepStandardChromosomes(gr_Walsh, pruning.mode="coarse") ##Remove dumb contigs
+
+H9_test1 <- data.frame(distanceToNearest(gr_H9_1D_EdU_Dox42_Common, gr_Walsh))
+H9_test2 <- data.frame(distanceToNearest(gr_H9_1D_EdU_Dox42_Report_Gain, gr_Walsh))
+H9_test3 <- data.frame(distanceToNearest(gr_H9_1D_EdU_Dox42_Report_Loss, gr_Walsh))
+
+H9_test1$Class <- "Common"
+#H9_test2$Class <- "Gain"
+H9_test3$Class <- "Lost"
+
+H9_mrg <- rbind(H9_test1,H9_test3)
+
+ggplot(H9_mrg,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot()  + stat_compare_means()  + theme_classic() # + geom_jitter() 
+ggplot(H9_mrg, aes(distance, color=Class, fill=Class)) + geom_density(position = "fill") + theme_classic()
+
+```
+
+```{r}
+library(readr)
+setwd("~/RepairSeq/dba_repair_1D4D7D/")
+Walsh_1D4D7D <- read_delim("dba_1D4D7D_All_New_walsh_Anno.bed", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+Walsh_1D4D7D_Shuffle <- read_delim("dba_1D4D7D_All_Shuffle_New_walsh_Anno.bed", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+
+colnames(Walsh_1D4D7D) <- NULL
+colnames(Walsh_1D4D7D)[1:3] <-  c("seqnames","start","end")
+#colnames(Walsh_1D4D7D)[1:21] <-  c("seqnames","start","end","ID","Pos","Ref","Alt","X1","X2","X3","X4","X5","x6","Group","Age","Gender","Disease","Region","seqnames.0","start.0","end.0")
+#colnames(Walsh_1D4D7D)[22:117] <- colnames(dba_1D4D7D_df)[4:98]
+
+colnames(Walsh_1D4D7D_Shuffle) <- NULL
+colnames(Walsh_1D4D7D_Shuffle)[1:3] <-c("seqnames","start","end")
+#colnames(Walsh_1D4D7D_Shuffle)[1:21] <-c("seqnames","start","end","ID","Pos","Ref","Alt","X1","X2","X3","X4","X5","x6","Group","Age","Gender","Disease","Region","seqnames.0","start.0","end.0")
+#colnames(Walsh_1D4D7D_Shuffle)[22:117] <- colnames(dba_1D4D7D_df)[4:98]
+
+Walsh_1D4D7D$sSNV <- NA
+Walsh_1D4D7D_Shuffle$sSNV <- NA
+
+walsh_1D4D7D_gr <- makeGRangesFromDataFrame(as.data.frame(Walsh_1D4D7D),keep.extra.columns = TRUE)
+walsh_1D4D7D_Shuffle_gr <- makeGRangesFromDataFrame(Walsh_1D4D7D_Shuffle,keep.extra.columns = TRUE)
+
+colnames(Walsh_1D4D7D)[1:21] <-  c("seqnames","start","end","ID","Pos","Ref","Alt","X1","X2","X3","X4","X5","x6","Group","Age","Gender","Disease","Region","seqnames.0","start.0","end.0")
+#colnames(Walsh_1D4D7D)[22:117] <- colnames(dba_1D4D7D_df)[4:98]
+
+colnames(Walsh_1D4D7D_Shuffle)[1:21] <-c("seqnames","start","end","ID","Pos","Ref","Alt","X1","X2","X3","X4","X5","x6","Group","Age","Gender","Disease","Region","seqnames.0","start.0","end.0")
+#colnames(Walsh_1D4D7D_Shuffle)[22:117] <- colnames(dba_1D4D7D_df)[4:98]
+
+peakAnno_Walsh_1D4D7D <- annotatePeak(walsh_1D4D7D_gr, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+peakAnno_Walsh_1D4D7D_df <- as.data.frame(peakAnno_Walsh_1D4D7D)
+
+peakAnno_Walsh_1D4D7D_Shuffle <- annotatePeak(walsh_1D4D7D_Shuffle_gr, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+peakAnno_Walsh_1D4D7D_Shuffle_df <- as.data.frame(peakAnno_Walsh_1D4D7D_Shuffle)
+
+peakAnno_Walsh_1D4D7D_Shuffle_df$annotation[peakAnno_Walsh_1D4D7D_Shuffle@detailGenomicAnnotation$Exon == "TRUE"] <- "Exon"
+peakAnno_Walsh_1D4D7D_Shuffle_df$annotation[peakAnno_Walsh_1D4D7D_Shuffle@detailGenomicAnnotation$Intron == "TRUE"] <- "Intron"
+peakAnno_Walsh_1D4D7D_df$annotation[peakAnno_Walsh_1D4D7D@detailGenomicAnnotation$Exon == "TRUE"] <- "Exon"
+peakAnno_Walsh_1D4D7D_df$annotation[peakAnno_Walsh_1D4D7D@detailGenomicAnnotation$Intron == "TRUE"] <- "Intron"
+
+peakAnno_Walsh_1D4D7D_df$Data <- "Repair"
+peakAnno_Walsh_1D4D7D_Shuffle_df$Data <- "Random_Shuffle"
+
+colnames(peakAnno_Walsh_1D4D7D_Shuffle_df) <- colnames(peakAnno_Walsh_1D4D7D_df)
+
+All_Walsh <- rbind(peakAnno_Walsh_1D4D7D_Shuffle_df, peakAnno_Walsh_1D4D7D_df)
+All_Walsh$sSNV[All_Walsh$NA.113 < 1000] <- "sSNV"
+All_Walsh$sSNV <- NULL
+
+All_Walsh$NA.108[All_Walsh$NA.108 %like% "Disease"] <- NA
+
+
+All_Walsh$annotation[All_Walsh$annotation %like% "Downstream"] <- "Downstream"
+All_Walsh$annotation[All_Walsh$annotation %like% "Exon"] <- "Exon"
+All_Walsh$annotation[All_Walsh$annotation %like% "Intron"] <- "Intron"
+
+
+
+All_Walsh_Complete <- na.omit(All_Walsh, cols = c("sSNV"))
+
+#WalshData_forR <- read_csv("WalshData_forR.csv")
+#walsh_gr <- makeGRangesFromDataFrame(WalshData_forR,keep.extra.columns = TRUE)
+
+```
+
+```{r}
+library(readr)
+library(data.table)
+setwd("~/RepairSeq/")
+Walsh_NCS <- read_delim("peakAnno_NCS_New_Walsh_Anno.bed", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+
+colnames(Walsh_NCS)[1:30] <-  c("seqnames", "start", "end", "width", "strand", "Conc", "Conc_1D.Repair", "Conc_1D.Repair.with.NCS", "Fold", "p.value", "FDR", "H9_1D_A", "H9_1D_B", "H1_1D_A", "H1_1D_B", "H9_UDS_NCS_A", "H9_UDS_NCS_B", "H1_UDS_NCS_A", "H1_UDS_NCS_B", "annotation", "geneChr", "geneStart", "geneEnd", "geneLength", "geneStrand", "geneId", "distanceToTSS", "ENSEMBL", "SYMBOL", "GENENAME")
+
+Walsh_NCS$annotation[Walsh_NCS$annotation %like% "Downstream"] <- "Downstream"
+Walsh_NCS$annotation[Walsh_NCS$annotation %like% "Exon"] <- "Exon"
+Walsh_NCS$annotation[Walsh_NCS$annotation %like% "Intron"] <- "Intron"
+Walsh_NCS$Group <- c()
+Walsh_NCS$Group[Walsh_NCS$Fold > 0 & Walsh_NCS$p.value < .05] <- "NCS_Gained"
+Walsh_NCS$Group[Walsh_NCS$Fold < 0 & Walsh_NCS$p.value < .05] <- "NCS_Lost"
+Walsh_NCS$Group[Walsh_NCS$p.value > .95] <- "Constant"
+
+Walsh_NCS$sSNV <- c()
+Walsh_NCS$sSNV[Walsh_NCS$X49 < 1000] <- "sSNV"
+
+Walsh_NCS_Complete <- na.omit(Walsh_NCS, cols = c("sSNV"))
+
+
+
+ggplot(Walsh_NCS_Complete, aes(x=X44, fill=Group, y=X49)) + geom_bar(position="dodge", stat = "summary", fun.y = "mean") + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + labs(x = "Neural Class") + labs(y = "Mean Distance to sSNV")
+
+ggplot(Walsh_NCS_Complete, aes(X49,fill=Group)) + geom_histogram(position="dodge", bins=100) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + labs(x = "Distance to nearest sSNV") + labs(y = "Number of Peaks") + scale_x_log10() + facet_wrap(~X44)
+
+Repair_NCS <- as.data.frame(table(Walsh_NCS_Complete$SYMBOL))
+
+for(i in Repair_NCS$Var1){
+  Repair_NCS$Gain_Count[Repair_NCS$Var1 == i] <- length(Walsh_NCS_Complete$Group[Walsh_NCS_Complete$Group == "NCS_Gained" & Walsh_NCS_Complete$SYMBOL == i])
+  Repair_NCS$Loss_Count[Repair_NCS$Var1 == i] <- length(Walsh_NCS_Complete$Group[Walsh_NCS_Complete$Group == "NCS_Lost" & Walsh_NCS_Complete$SYMBOL == i])
+  Repair_NCS$Constant_Count[Repair_NCS$Var1 == i] <- length(Walsh_NCS_Complete$Group[Walsh_NCS_Complete$Group == "Constant" & Walsh_NCS_Complete$SYMBOL == i])
+}
+```

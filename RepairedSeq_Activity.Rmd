@@ -27,7 +27,9 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 ```{r}
 ### Load new dba and bcb objects.
 load("repairseq_dbaV2.rdata")
-#load("repairseq_bcbV2.rda")
+load("repairseq_bcbV2.rda")
+
+###Add PARP
 
 # New masks basic 1D Peaks Common across H1 and H9
 dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
@@ -39,15 +41,195 @@ dba_1Day_EdU_KCl_ESCin <- dba(DBAobject,dba_EdU_1Day_KCl_ESCin_mask)
 dba_KCl <- dba.contrast(dba_1Day_EdU_KCl_ESCin, categories=DBA_TREATMENT, minMembers = 2)
 dba_KCl <- dba.analyze(dba_KCl, method=DBA_DESEQ2)
 #Peaks gained by KCL treatment
-dba_KCl_Report <- dba.report(dba_KCl, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bLoss=TRUE)
+dba_KCl_Report <- dba.report(dba_KCl, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE, bFlip = TRUE)
 
-dba_EdU_1Day_KCl.Pki_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("KCl_Pki","None"),mask=dba_EdU_1Day_mask, merge="and")
+df_KCl_vs_None <- data.frame(dba_KCl_Report)
+
+KCl_OE <- df_KCl_vs_None$FDR <= 0.05 
+
+df_KCl_vs_None$threshold <- KCl_OE 
+my_Colors <- c("#662d91","#1d8348")
+
+pdf("KCl_vs_EdU.pdf")
+ggplot(df_KCl_vs_None) +
+        geom_point(aes(x=Fold, y=-log10(FDR), colour=threshold),size=1, shape=16) +
+        ggtitle("KCl vs EdU") +
+        xlab("log2 fold change") + 
+        ylab("-log10 FDR") +
+        #scale_y_continuous(limits = c(0,50)) +
+        theme(legend.position = "none") + theme_classic() + scale_color_manual(values=my_Colors) + xlim(-5,5)
+
+dev.off()
+
+dba_KCL_gained <- dba_KCl_Report[dba_KCl_Report$Fold > 0 & dba_KCl_Report$FDR < .05]
+dba_KCL_gained_df <- data.frame(dba_KCL_gained)
+peakAnno_KCL_gained <- annotatePeak(dba_KCL_gained, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_KCL_gained_df <- data.frame(peakAnno_KCL_gained)
+write.csv(peakAnno_KCL_gained_df, file="peakAnno_KCL_gained.csv")
+
+dba_KCL_lost <- dba_KCl_Report[dba_KCl_Report$Fold < 0 & dba_KCl_Report$FDR < .05]
+dba_KCL_lost_df <- data.frame(dba_KCL_lost)
+peakAnno_KCL_lost <- annotatePeak(dba_KCL_lost, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_KCL_lost_df <- data.frame(peakAnno_KCL_lost)
+write.csv(peakAnno_KCL_lost_df, file="peakAnno_KCL_lost.csv")
+
+
+```
+
+```{r}
+
+
+dba_EdU_1Day_KCl.Pki_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("KCl_Pki","KCl"),mask=dba_EdU_1Day_mask, merge="and")
 dba_EdU_1Day_KCl.Pki_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_KCl.Pki_mask, merge="and")
 dba_1Day_EdU_KCl.Pki_ESCin <- dba(DBAobject,dba_EdU_1Day_KCl.Pki_ESCin_mask)
 dba_KCl.Pki <- dba.contrast(dba_1Day_EdU_KCl.Pki_ESCin, categories=DBA_TREATMENT, minMembers = 2)
 dba_KCl.Pki <- dba.analyze(dba_KCl.Pki, method=DBA_DESEQ2)
 #Peaks lost with KCL + pKi
-dba_KCl.Pki_Report <- dba.report(dba_KCl.Pki, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bGain=TRUE)
+dba_KCl.Pki_Report <- dba.report(dba_KCl.Pki, contrast=1, th=1, bUsePval=TRUE, fold=1, bCounts = TRUE)
+
+
+df_KCl.Pki_vs_KCl <- data.frame(dba_KCl.Pki_Report)
+
+KCl.Pki_OE <- df_KCl.Pki_vs_KCl$FDR <= 0.05 
+
+df_KCl.Pki_vs_KCl$threshold <- KCl.Pki_OE 
+my_Colors <- c("#662d91","#1d8348")
+
+pdf("KCl.Pki_vs_KCl.pdf")
+ggplot(df_KCl.Pki_vs_KCl) +
+        geom_point(aes(x=Fold, y=-log10(FDR), colour=threshold),size=1, shape=16) +
+        ggtitle("KCl.Pki vs KCl") +
+        xlab("log2 fold change") + 
+        ylab("-log10 FDR") +
+        #scale_y_continuous(limits = c(0,50)) +
+        theme(legend.position = "none") + theme_classic() + scale_color_manual(values=my_Colors) + xlim(-7,7)
+
+dev.off()
+
+dba_KCL.Pki_gained <- dba_KCl.Pki_Report[dba_KCl.Pki_Report$Fold > 0 & dba_KCl.Pki_Report$FDR < .05]
+dba_KCL.Pki_gained_df <- data.frame(dba_KCL.Pki_gained)
+peakAnno_KCL.Pki_gained <- annotatePeak(dba_KCL.Pki_gained, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_KCL.Pki_gained_df <- data.frame(peakAnno_KCL.Pki_gained)
+write.csv(peakAnno_KCL.Pki_gained_df, file="peakAnno_KCL.Pki_gained.csv")
+
+dba_KCL.Pki_lost <- dba_KCl.Pki_Report[dba_KCl.Pki_Report$Fold < 0 & dba_KCl.Pki_Report$FDR < .05]
+dba_KCL.Pki_lost_df <- data.frame(dba_KCL.Pki_lost)
+peakAnno_KCL.Pki_lost <- annotatePeak(dba_KCL.Pki_lost, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_KCL.Pki_lost_df <- data.frame(peakAnno_KCL.Pki_lost)
+write.csv(peakAnno_KCL.Pki_lost_df, file="peakAnno_KCL.Pki_lost.csv")
+
+
+peakAnno_RPKMs <- annotatePeak(rpkm_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+peakanno_rpkm_df <- data.frame(peakAnno_RPKMs)
+
+rpkm_promoters <- peakanno_rpkm_df[peakanno_rpkm_df$annotation == 'Promoter (<=1kb)',]
+```
+
+```{r}
+
+# New masks basic 1D Peaks Common across H1 and H9
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+dba_EdU_1Day_KCl_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("KCl","None","KCl_Pki"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_KCl_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_KCl_mask, merge="and")
+dba_1Day_EdU_KCl_pKi_ESCin <- dba(DBAobject,dba_EdU_1Day_KCl_ESCin_mask)
+dba_KCl_All <- dba.contrast(dba_1Day_EdU_KCl_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_KCl_All <- dba.analyze(dba_KCl_All, method=DBA_DESEQ2)
+#Peaks gained by KCL treatment
+dba_KCl_Report <- dba.report(dba_KCl, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE, bFlip = TRUE)
+
+
+```
+
+
+```{r}
+mygenes <- c("FOS", "NPAS4", "MALAT1", "ERG", "OLIG2", "NR4A1", "HOMER1", "SFI1", "HDAC2", "HNRNPA2B1", "SIRT1", "BDNF", "ARC", "HIC1", "LINC00473", "ZNF331", "ADRA1B")
+list <- dba_1Day_EdU_KCl_pKi_ESCin$peaks
+RPKMs <- data.frame(list[[1]]$RPKM,list[[2]]$RPKM,list[[3]]$RPKM,list[[4]]$RPKM,list[[5]]$RPKM,list[[6]]$RPKM,list[[7]]$RPKM,list[[8]]$RPKM,list[[9]]$RPKM,list[[10]]$RPKM,list[[11]]$RPKM,list[[12]]$RPKM)
+
+names <- c("H9_EdU_A","H9_EdU_B","H1_KCl_PKi_A","H1_KCl_PKi_B","H1_EdU_A","H1_EdU_B","H1_KCl_A","H1_KCl_B","H9_KCl_PKi_A","H9_KCl_PKi_B","H9_KCl_A","H9_KCl_B")
+colnames(RPKMs) <- names
+
+bed <- list[[1]][,1:3]
+rpkm_bed <- cbind(bed,RPKMs)
+
+rpkm_gr <- makeGRangesFromDataFrame(rpkm_bed, keep.extra.columns = TRUE)
+peakAnno_RPKMs <- annotatePeak(rpkm_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakanno_rpkm_df <- data.frame(peakAnno_RPKMs)
+
+#rpkm_promoters <- peakanno_rpkm_df[peakanno_rpkm_df$annotation == 'Promoter (<=1kb)']
+rpkm_promoters <- subset(peakanno_rpkm_df, peakanno_rpkm_df$annotation %in% c('Promoter (<=1kb)','Promoter (1-2kb)','Promoter (2-3kb)'))
+View(rpkm_promoters)
+rpkm_activity_subset <- subset(rpkm_promoters, rpkm_promoters$SYMBOL %in% mygenes)
+
+test <- rpkm_activity_subset[,c(6:17,28)]
+
+
+library(dplyr)
+
+Activity_RPKMs <- test %>%
+group_by(SYMBOL) %>%
+summarise_all(sum)
+
+activity_rpkm_t <- data.frame(t(Activity_RPKMs))
+
+Act_RPKM <- Activity_RPKMs[,-1]
+
+rownames(Act_RPKM) <- Activity_RPKMs$SYMBOL
+View(Act_RPKM)
+
+activity_rpkm_t <- data.frame(t(Act_RPKM))
+
+activity_rpkm_t$Class <- "bg"
+activity_rpkm_t$Class[c(1,2,5,6)] <- "Ctl"
+activity_rpkm_t$Class[c(3,4,9,10)] <- "KCL PKi"
+activity_rpkm_t$Class[c(7,8,11,12)] <- "KCl"
+mdata <- melt(activity_rpkm_t, id=c("Class"))
+mdata2 <- mdata[mdata$Class != "KCL PKi",]
+
+activity_rpkm_t_new <- activity_rpkm_t[activity_rpkm_t$Class !="KCL PKi",]
+
+ggplot(mdata2, aes(x=Class, y=value)) + geom_boxplot(aes(x=Class, y=value, fill=variable)) + facet_grid(. ~ variable)  + scale_y_log10() + theme_classic() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 90)) + ylab("RPKM") + stat_compare_means(label = "p.signif", method = "t.test",ref.group = "Ctl")
+
+
+
+rpkm_promoter_df <- rpkm_promoters[,c(6:17,28)]
+
+Activity_Promtoer_RPKMs <- rpkm_promoter_df %>%
+group_by(SYMBOL) %>%
+summarise_all(sum)
+
+APR <- Activity_Promtoer_RPKMs[complete.cases(Activity_Promtoer_RPKMs), ]
+
+Act_RPKM <- APR[,-1]
+
+rownames(Act_RPKM) <- APR$SYMBOL
+activity_rpkm_t <- data.frame(t(Act_RPKM))
+activity_rpkm_t$Class <- "bg"
+activity_rpkm_t$Class[c(1,2,5,6)] <- "Ctl"
+activity_rpkm_t$Class[c(3,4,9,10)] <- "KCL PKi"
+activity_rpkm_t$Class[c(7,8,11,12)] <- "KCl"
+mdata <- melt(activity_rpkm_t, id=c("Class"))
+mdata2 <- mdata[mdata$Class != "KCL PKi",]
+
+promoter_pvals <- col_t_paired(activity_rpkm_t_new[activity_rpkm_t_new$Class=="Ctl",-18882], activity_rpkm_t_new[activity_rpkm_t_new$Class=="KCl",-18882])
+View(promoter_pvals)
+promoter_pvals_significant <- promoter_pvals[promoter_pvals$pvalue <= .01,]
+write.csv(promoter_pvals_significant, file="promoter_pvals_significant.csv")
+
+
+gene <- seq2gene(Repair_NOT_ATAC_NOT_H3K27Ac_gr, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego <- enrichGO(gene=rownames(promoter_pvals_significant), OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType= 'SYMBOL')
+
+pdf("Repair_Only_GeneOntology.pdf")
+barplot(ego, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+dev.off()
+
+```
+
+```{r}
 
 dba_EdU_1Day_TTX_low_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("TTX_low","None"),mask=dba_EdU_1Day_mask, merge="and")
 dba_EdU_1Day_TTX_low_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_TTX_low_mask, merge="and")
@@ -73,6 +255,13 @@ dba_TTX_low_KCl <- dba.analyze(dba_TTX_low_KCl, method=DBA_DESEQ2)
 #Peaks lost with TTX
 dba_TTX_low_KCl_Report <- dba.report(dba_TTX_low_KCl, contrast=1, th=.05, bUsePval=TRUE, fold=1.5, bGain=TRUE)
 
+dba_EdU_1Day_PARP_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("PARP","None"),mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_PARP_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_PARP_mask, merge="and")
+dba_1Day_EdU_PARP_ESCin <- dba(DBAobject,dba_EdU_1Day_PARP_ESCin_mask)
+dba_PARP <- dba.contrast(dba_1Day_EdU_PARP_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_PARP <- dba.analyze(dba_PARP, method=DBA_DESEQ2)
+#Peaks lost with TTX
+dba_PARP_Report <- dba.report(dba_PARP, contrast=1, th=.05, bUsePval=TRUE, fold=1.5)
 ```
 
 ```{r}
@@ -80,8 +269,10 @@ dba.plotMA(dba_KCl, bFlip=TRUE)
 peakAnno_KCl <- annotatePeak(dba_KCl_Report, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 gene_KCl <- seq2gene(dba_KCl_Report, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
 ego_KCl <- enrichGO(gene=gene_KCl, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+ego_KCl_simp <- simplify(ego_KCl, cutoff = 0.7, by = "p.adjust",select_fun = min)
 barplot(ego_KCl, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
-plotAnnoPie(peakAnno_KCl) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+barplot(ego_KCl_simp, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+#plotAnnoPie(peakAnno_KCl) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
 ```
 
 
@@ -110,5 +301,26 @@ gene_KCl_KCl.Pki <- seq2gene(dba_KCL_KCl.Pki_Report, tssRegion = c(-1000, 1000),
 ego_KCl_KCl.Pki <- enrichGO(gene=gene_KCl_KCl.Pki, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
 barplot(ego_KCl_KCl.Pki, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
 plotAnnoPie(peakAnno_KCl_KCl.Pki) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+```{r}
+dba.plotMA(dba_PARP, bFlip=TRUE)
+peakAnno_PARP <- annotatePeak(dba_PARP_Report, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+gene_PARP <- seq2gene(dba_PARP_Report, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego_PARP <- enrichGO(gene=gene_PARP, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+barplot(ego_PARP, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+plotAnnoPie(peakAnno_PARP) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+```
+
+
+```{r}
+dba_Pki_TTX_Intersect <- GenomicRanges::intersect(dba_KCl.Pki_Report,dba_TTX_low_Report)
+dba_Pki_TTX_Union <- GenomicRanges::union(dba_KCl.Pki_Report,dba_TTX_low_Report)
+
+peakAnno_Pki_TTX_Intersect <- annotatePeak(dba_Pki_TTX_Intersect, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+gene_Pki_TTX_Intersect <- seq2gene(dba_Pki_TTX_Intersect, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
+ego_Pki_TTX_Intersect <- enrichGO(gene=gene_Pki_TTX_Intersect, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
+barplot(ego_Pki_TTX_Intersect, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+
 ```
 
