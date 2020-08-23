@@ -28,17 +28,6 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 
 ```
 
-```{r}
-bcbioRNASeq::prepareTemplate(package = "bcbioRNASeq")
-source("_setup.R")
-
-# Load object ==================================================================
-repair_bcb_name <- load(params$bcb_file)
-repair_bcb <- get(repair_bcb_name, inherits = FALSE)
-#stopifnot(is(repair_bcb, "bcbioRNASeq"))
-invisible(validObject(repair_bcb))
-print(repair_bcb)
-```
 
 
 ```{r sample_data}
@@ -52,7 +41,7 @@ sample_data
 ```
 
 ```{r counts}
-repair_bcb <- repairseq_bcbV2
+repair_bcb <- object
 
 # Raw counts (don't use for plotting)
 repair_raw_counts <- counts(repair_bcb, normalized = FALSE)
@@ -66,16 +55,25 @@ writeCounts(repair_raw_counts, repair_normalized_counts, repair_tpm, dir = ".")
 ```
 
 ```{r}
-#(A) RPM (repairs per kilobase million) from genome repair hotspots compared with TPM (transcripts per kilobase million) from total RNA-Seq define 4 distinct classes of genes based on their repair and transcription.
-load("repairseq_dbaV2.rdata")
-load("RNA_tpm.rda")
+peakAnno_dba_1D_Common2
 
-dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
-dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
-dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
-dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
-dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
-dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
+Peaks_per_gene <- table(peakAnno_H1H9_1D_df$ENSEMBL)
+
+```
+
+```{r}
+#(A) RPM (repairs per kilobase million) from genome repair hotspots compared with TPM (transcripts per kilobase million) from total RNA-Seq define 4 distinct classes of genes based on their repair and transcription.
+#load("repairseq_dbaV2.rdata")
+load("RNA_tpm.rda")
+load("dba_1Day_EdU_None_ESCin.rda")
+###########
+dba_1Dog <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1Dog <- dba.analyze(dba_1Dog, method=DBA_DESEQ2)
+dba_1D_Report2 <- dba.report(dba_1Dog, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_Common2 <- dba_1D_Report2[dba_1D_Report2$FDR > .05]
+dba_1D_Common2_df <- data.frame(dba_1D_Common2)
+peakAnno_dba_1D_Common2 <- annotatePeak(dba_1D_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
 
 H1H9_1D_Peaks <- makeGRangesFromDataFrame(as.data.frame(dba_1Day_EdU_None_ESCin$peaks), keep.extra.columns = TRUE)
 peakAnno_H1H9_1D <- annotatePeak(H1H9_1D_Peaks, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
@@ -112,35 +110,185 @@ RNA_TPM_H1H9$ENSEMBL <- rownames(RNA_TPM_H1H9)
 RNA_TPM_H1H9$avg_RNA_TPM <- rowMeans(RNA_TPM_H1H9[c('H9UNG_A', 'H9UNG_B','H9UNG_A', 'H9UNG_B')], na.rm=FALSE)
 
 H1H9_1D_Data_All <- merge(RNA_TPM_H1H9, H1H91D_ALL, by.x="ENSEMBL", by.y ="Var1", all=TRUE)
+H1H9_1D_Data_All_Genic <- merge(RNA_TPM_H1H9, H1H91D_genic, by.x="ENSEMBL", by.y ="Var1", all=TRUE)
 
 
 H1H9_1D_Data_All$repairTPM[is.na(H1H9_1D_Data_All$repairTPM)] <- 0
+H1H9_1D_Data_All_Genic$repairTPM[is.na(H1H9_1D_Data_All_Genic$repairTPM)] <- 0
 
-H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM > 0 & H1H9_1D_Data_All$repairTPM > 0] <- "Class_4"
-H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM == 0 & H1H9_1D_Data_All$repairTPM > 0] <- "Class_3"
-H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM > 0 & H1H9_1D_Data_All$repairTPM==0] <- "Class_2"
-H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM == 0 & H1H9_1D_Data_All$repairTPM==0] <- "Class_1"
 
-pdf("H1H9_1D_Common_Peak_TPMs_vs_RNA_TPMs.pdf", paper="USr")
-filter(H1H9_1D_Data_All, !is.na(Class)) %>% ggplot(aes(x=avg_RNA_TPM+.0001, y=repairTPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
-geom_point(alpha = 0.2, size=.5, aes(colour=Class)) +
+H1H9_1D_Data_All$Class[H1H9_1D_Data_All$repairTPM > 0] <- "Genes_w_Repair"
+H1H9_1D_Data_All$Class[H1H9_1D_Data_All$repairTPM == 0] <- "Genes_wo_Repair"
+
+CE Repair ATAC Shuffle sSNV
+
+CE-Repair
+CE_ATAC
+CE_Shuffle
+CE-sSNV
+
+
+
+H1H9_1D_Data_All$Class2[H1H9_1D_Data_All$avg_RNA_TPM > 0 & H1H9_1D_Data_All$repairTPM> 0] <- "Active"
+#H1H9_1D_Data_All$Class[H1H9_1D_Data_All$avg_RNA_TPM == 0 & H1H9_1D_Data_All$repairTPM==0] <- "Class_1"
+
+H1H9_1D_Data_All$Class3[H1H9_1D_Data_All$avg_RNA_TPM > 0] <- "Genes_w_Expression"
+H1H9_1D_Data_All$Class3[H1H9_1D_Data_All$avg_RNA_TPM == 0] <- "Genes_wo_Expression"
+
+library(DescTools)
+library('biomaRt')
+mart <- useDataset("hsapiens_gene_ensembl", useMart("ensembl"))
+genes <- H1H9_1D_Data_All$ENSEMBL
+genes_genic <- H1H9_1D_Data_All_Genic$ENSEMBL
+
+G_list_a <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id", "chromosome_name", "start_position","end_position","gene_biotype"),values=genes,mart= mart)
+G_list_genic <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id", "chromosome_name", "start_position","end_position","gene_biotype"),values=genes_genic,mart= mart)
+
+#exon_list <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id","hgnc_symbol", "start_position","end_position","gene_biotype","gene_exon"),values=genes,mart= mart)
+OUT <- merge(H1H9_1D_Data_All,G_list_a,by.x="ENSEMBL",by.y="ensembl_gene_id")
+OUT_genic <- merge(H1H9_1D_Data_All_Genic,G_list_genic,by.x="ENSEMBL",by.y="ensembl_gene_id")
+
+
+OUT$gene_biotype[OUT$gene_biotype %like% "IG%"] <- "IG"
+OUT$gene_biotype[OUT$gene_biotype %like% "TR%"] <- "TR"
+OUT$gene_biotype[OUT$gene_biotype %like% "%pseudogene"] <- "pseudogene"
+
+OUT_Filtered <- OUT %>% filter(str_detect(gene_biotype, 'protein_coding'))
+
+OUT_genic$gene_biotype[OUT_genic$gene_biotype %like% "IG%"] <- "IG"
+OUT_genic$gene_biotype[OUT_genic$gene_biotype %like% "TR%"] <- "TR"
+OUT_genic$gene_biotype[OUT_genic$gene_biotype %like% "%pseudogene"] <- "pseudogene"
+
+OUT_genic_Filtered <- OUT_genic %>% filter(str_detect(gene_biotype, 'protein_coding'))
+
+
+Gene_Data <- data.frame(G_list_a)
+#pdf("H1H9_1D_Common_Peak_TPMs_vs_RNA_TPMs.pdf", paper="USr")
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Peaks)) %>% ggplot(aes(x=avg_RNA_TPM.Salmon+.0001, y=repairTPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
+geom_point(alpha = .2, size=1, shape=16, aes(colour=Class.Peaks)) +
 xlab("expression TPMs")+
 ylab("Repair TPMs")+
-theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91"))
-dev.off()
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#662d91", "grey")) #+ facet_wrap(~gene_biotype, nrow = 3)
+#dev.off()
+
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Peaks)) %>% ggplot(aes(x=avg_RNA_TPM.Salmon+.0001, y=avg_Repair_TPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
+geom_point(alpha = .2, size=1, shape=16, aes(colour=Class.Peaks)) +
+xlab("expression TPMs")+
+ylab("Salmon Repair TPMs")+
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#662d91", "grey")) #+ facet_wrap(~gene_biotype, nrow = 3)
 
 pdf("H1H9_1D_Common_Peak_TPMs_vs_RNA_TPMs_BarPlot.pdf", paper="USr")
-filter(H1H9_1D_Data_All, !is.na(Class)) %>% ggplot(aes(Class)) + geom_bar(aes(fill=Class)) + scale_fill_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91")) + theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + ylab("Gene Count")
+filter(H1H9_All_Filtered, !is.na(Class.Peaks)) %>% ggplot(aes(Class.Peaks)) + geom_bar(aes(fill=Class.Peaks)) + scale_fill_manual(values=c("#662d91", "grey")) + theme_classic() + ylab("Gene Count")
 dev.off()
 
 
 write.csv(H1H9_1D_Data_All, "H1H9_1Day_Peak_TPM_4Classes.csv")
 
+H1H9_1D_Data_All_TPM_All <- merge(H1H9_1D_Data_All, H1H9_1D_TPM_Data, by.x="ENSEMBL", by.y ="ENSEMBL", all=TRUE, suffixes = c(".Peaks",".Salmon"))
+H1H9_1D_Data_Genic_TPM_Genic <- merge(H1H9_1D_Data_All_Genic, H1H9_1D_TPM_Data, by.x="ENSEMBL", by.y ="ENSEMBL", all=TRUE, suffixes = c(".Peaks",".Salmon"))
+
+
+H1H9_All_All <- merge(H1H9_1D_Data_All_TPM_All,G_list_a,by.x="ENSEMBL",by.y="ensembl_gene_id")
+
+
+
+H1H9_All_All$gene_length <- abs(H1H9_All_All$end_position - H1H9_All_All$start_position)
+
+H1H9_All_All$gene_biotype[H1H9_All_All$gene_biotype %like% "IG%"] <- "IG"
+H1H9_All_All$gene_biotype[H1H9_All_All$gene_biotype %like% "TR%"] <- "TR"
+H1H9_All_All$gene_biotype[H1H9_All_All$gene_biotype %like% "%pseudogene"] <- "pseudogene"
+H1H9_All_All$gene_biotype[H1H9_All_All$gene_biotype %like% "s%"] <- "s.RNA"
+
+library(dplyr)
+library(stringr)
+H1H9_All_Filtered <- H1H9_All_All %>% filter(str_detect(gene_biotype, 'protein_coding'))
+H1H9_All_Filtered <- H1H9_All_Filtered[,-c(2:6,11,16:19,21:24)]
+H1H9_Filtered_Quartiles <- H1H9_All_Filtered %>% mutate(rna_quartile = ntile(avg_RNA_TPM.Salmon, 4))
+H1H9_Filtered_Quartiles <- H1H9_Filtered_Quartiles %>% mutate(repairPeak_quartile = ntile(repairTPM, 4))
+H1H9_Filtered_Quartiles <- H1H9_Filtered_Quartiles %>% mutate(repairTotal_quartile = ntile(avg_Repair_TPM, 4))
+
+
+filter(H1H9_All_Filtered, !is.na(Class.Peaks)) %>% ggplot(aes(Class.Peaks)) + geom_bar(aes(fill=Class.Peaks)) + scale_fill_manual(values=c("#662d91", "grey")) + theme_classic() + ylab("Gene Count")
+filter(H1H9_All_Filtered, !is.na(Class.Salmon)) %>% ggplot(aes(Class.Salmon)) + geom_bar(aes(fill=Class.Salmon)) + scale_fill_manual(values=c("#662d91", "grey")) + theme_classic() + ylab("Gene Count")
+filter(H1H9_All_Filtered, !is.na(Class3)) %>% ggplot(aes(Class3)) + geom_bar(aes(fill=Class3)) + scale_fill_manual(values=c("#662d91", "grey")) + theme_classic() + ylab("Gene Count")
+
+
+
+write.csv(H1H9_1D_Data_All_TPM_All, "H1H9_1Day_Peak_TPM_Salmon_TPM.csv")
+write.csv(OUT, "H1H9_1Day_Peak_TPM_Salmon_TPM_New.csv")
+
+write.csv(H1H9_All_Filtered, "H1H9_All_Filtered.csv")
+
+
+
+dplyr::filter(OUT, !is.na(Class)) %>% ggplot(aes(x=gene_length, y=avg_RNA_TPM + .0001))  + scale_x_log10() + scale_y_log10() +
+    geom_point(alpha = 1, size=1, shape=16,aes(colour=gene_biotype)) +
+    xlab("gene length")+
+    ylab("Expression TPMs")+
+    theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_viridis(discrete=TRUE)
+
+
+pdf("Repair_Expression_And_Length.pdf", paper="US")
+
+my.formula <- y ~ x
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Salmon)) %>% ggplot(aes(x=gene_length, y=repairTPM))  + scale_x_log10() + scale_y_log10() + geom_point(colour="#662d91",alpha = 1, size=1, shape=16) + xlab("gene length")+ ylab("Repair in Peaks TPMs")+ theme_classic() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")   #+ facet_wrap(~gene_biotype, nrow = 3) + 
+
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Salmon)) %>% ggplot(aes(x=gene_length, y=avg_RNA_TPM.Salmon))  + scale_x_log10() + scale_y_log10() + geom_point(colour="#662d91",alpha = 1, size=1, shape=16) + xlab("gene length")+ ylab("Expression TPMs")+ theme_classic() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")  #+ facet_wrap(~gene_biotype, nrow = 3)
+
+
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Salmon)) %>% ggplot(aes(x=gene_length, y=avg_Repair_TPM ))  + scale_x_log10() + scale_y_log10() + geom_point(alpha = 1, size=1, shape=16, color="#662d91") + xlab("gene length")+ ylab("Total Repair TPMs")+ theme_classic() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red") #+ facet_wrap(~gene_biotype, nrow = 3)
+
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Salmon)) %>% ggplot(aes(x=gene_length, y=avg_Repair_TPM-repairTPM))  + scale_x_log10() + scale_y_log10() + geom_point(colour="#662d91",alpha = 1, size=1, shape=16) + xlab("gene length")+ ylab("Total Repair TPMs - Peak Repair TPMs")+ theme_classic() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")  #+ facet_wrap(~gene_biotype, nrow = 3)
+
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Salmon)) %>% ggplot(aes(x=avg_RNA_TPM.Salmon, y=avg_Repair_TPM))  + scale_x_log10() + scale_y_log10() + geom_point(alpha = 1, size=1, shape=16) + xlab("gene expression TPMs")+ ylab("Total Repair TPMs")+ theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_viridis(discrete=TRUE, direction = -1) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE)   #+ facet_wrap(~gene_biotype, nrow = 3)
+
+dplyr::filter(H1H9_All_Filtered, !is.na(Class.Salmon)) %>% ggplot(aes(x=avg_RNA_TPM.Salmon, y=repairTPM))  + scale_x_log10() + scale_y_log10() + geom_point(aes(colour="#662d91"),alpha = 1, size=1, shape=16) + xlab("gene expression TPMs")+ ylab("Peak Repair TPMs")+ theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_viridis(discrete=TRUE, direction = -1) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE)  #+ facet_wrap(~gene_biotype, nrow = 3)
+
+
+dev.off()
+
+dplyr::filter(OUT, !is.na(Class)) %>% ggplot(aes(x=avg_RNA_TPM+.0001, y=repairTPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
++     geom_point(alpha = .5, size=1, shape=16,aes(colour=log10(gene_length))) +
++     xlab("expression TPMs")+
++     ylab("Repair TPMs")+
++     theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + facet_wrap(~gene_biotype, nrow = 3) + scale_color_viridis()
+
+load("G_list.rda")
+G_list_split <- split(G_list,G_list$ensembl_gene_id)
+
+
+H1H9_All_All_ExonData <-  data.frame(matrix(vector(), 58120, 4,dimnames=list(c(), c("ENSEMBL","Exon_Count", "Coding_Length", "Coding_Fraction"))),stringsAsFactors=F)
+
+
+for (i in 1:58120) {
+  H1H9_All_All_ExonData$ENSEMBL[i] <- G_list_split[[i]]$ensembl_gene_id[1]
+  H1H9_All_All_ExonData$Exon_Count[i] <-  length(G_list_split[[i]]$gene_exon)
+  H1H9_All_All_ExonData$Coding_Length[i] <- sum(str_length(G_list_split[[i]]$gene_exon))
+  H1H9_All_All_ExonData$Coding_Fraction[i] <- sum(str_length(G_list_split[[i]]$gene_exon)) / abs(G_list_split[[i]]$end_position - G_list_split[[i]]$start_position)[1]
+  }
+H1H9_1D_Data_All_3 <- merge(H1H9_All_Filtered, H1H9_All_All_ExonData, by.x="ENSEMBL", by.y ="ENSEMBL", all.x=TRUE) 
+
+my.formula <- y ~ x
+
+H1H9_1D_Data_All_3_Filtered <- H1H9_1D_Data_All_3 %>% filter(str_detect(gene_biotype, 'protein_coding'))
+
+
+ggplot(H1H9_1D_Data_All_3_Filtered) + geom_point(alpha = 1, size=1, shape=16, colour="#662d91",aes(x=Coding_Length, y=Freq)) + theme_classic() + scale_x_log10()
+
+ggplot(H1H9_1D_Data_All_3[H1H9_1D_Data_All_3$Freq>0,],aes(x=Freq)) + geom_histogram() + theme_classic() 
+
+
+
+H1H9_1D_Data_All_3$HotSpot_Density <- H1H9_1D_Data_All_3$Freq/H1H9_1D_Data_All_3$length
+H1H9_1D_Data_All_3$HotSpot_CodingDensity <- H1H9_1D_Data_All_3$Freq/H1H9_1D_Data_All_3$Coding_Length
+
+ggplot(H1H9_1D_Data_All_3,aes(x=gene_biotype, y=HotSpot_Density)) + geom_boxplot(aes(fill=gene_biotype)) + theme_classic() + scale_y_log10() + scale_color_viridis(discrete=TRUE, direction = -1)
+ggplot(H1H9_1D_Data_All_3,aes(x=gene_biotype, y=HotSpot_CodingDensity)) + geom_boxplot(aes(fill=gene_biotype)) + theme_classic() + scale_y_log10() + scale_fill_viridis(discrete=TRUE, direction = -1)
+
 ```
 
 
 ```{r}
-# (B) Total RPMs compared with TPMs demonstrate few genes change classes when accounting for all measured repairs.
 load("repair_tpm.rda")
 load("RNA_tpm.rda")
 
@@ -159,27 +307,285 @@ Repair_TPM_H1H9$avg_Repair_TPM <- rowMeans(Repair_TPM_H1H9[c('H1UNG_EdU_1d_A', '
 
 H1H9_1D_TPM_Data <- merge(RNA_TPM_H1H9, Repair_TPM_H1H9, by.x="ENSEMBL", by.y ="ENSEMBL", all=TRUE)
 
-H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_RNA_TPM > 0 & H1H9_1D_TPM_Data$avg_Repair_TPM > 0] <- "Class_4"
-H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_RNA_TPM == 0 & H1H9_1D_TPM_Data$avg_Repair_TPM > 0] <- "Class_3"
-H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_RNA_TPM > 0 & H1H9_1D_TPM_Data$avg_Repair_TPM==0] <- "Class_2"
-H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_RNA_TPM == 0 & H1H9_1D_TPM_Data$avg_Repair_TPM==0] <- "Class_1"
+H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_Repair_TPM > 0] <- "Genes_w_Repair"
+H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_Repair_TPM == 0] <- "Genes_wo_Repair"
+H1H9_1D_TPM_Data$Class2[H1H9_1D_TPM_Data$avg_RNA_TPM > 0 & H1H9_1D_TPM_Data$avg_Repair_TPM>0] <- "Active"
+#H1H9_1D_TPM_Data$Class[H1H9_1D_TPM_Data$avg_RNA_TPM == 0 & H1H9_1D_TPM_Data$avg_Repair_TPM==0] <- "Class_1"
+
+OUT2 <- merge(H1H9_1D_TPM_Data,G_list_a,by.x="ENSEMBL",by.y="ensembl_gene_id")
+
+OUT2_Filtered <- OUT2 %>% filter(str_detect(gene_biotype, 'protein_coding'))
+
 
 # (B) Total RPMs compared with TPMs demonstrate few genes change classes when accounting for all measured repairs.
+
+
+
 pdf("H1H9_1D_Common_TotalReads_TPMs_vs_RNA_TPMs.pdf", paper="USr")
-my.formula <- y ~ x
-ggplot(H1H9_1D_TPM_Data, aes(x=avg_RNA_TPM + .0001, y=avg_Repair_TPM + .0001)) + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
-geom_point(alpha = 0.2, size=.5, aes(colour=Class))+
+my.formula <- log10(y) ~ log10(x)
+dplyr::filter(OUT2_Filtered, !is.na(Class)) %>% ggplot(aes(x=avg_RNA_TPM+.00001 , y=avg_Repair_TPM+.00001)) +
+geom_point(alpha = .2, size=1, shape=16, aes(colour=Class))+
 xlab("RNA TPMs")+
 ylab("Repair TPMs")+
-theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91")) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE) 
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#662d91", "grey")) + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE) 
 dev.off()
-
-write.csv(H1H9_1D_TPM_Data, "H1H9_1Day_TPM_4Classes.csv")
 
 pdf("H1H9_1D_Common_TotalReads_TPMs_vs_RNA_TPMs_BarPlot.pdf", paper="USr")
-ggplot(H1H9_1D_TPM_Data, aes(Class)) + geom_bar(aes(fill=Class)) + scale_fill_manual(values=c("#2e4053", "#1d8348", "#2e86c1", "#662d91")) + theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + ylab("Gene Count")
+ggplot(H1H9_1D_TPM_Data, aes(Class)) + geom_bar(aes(fill=Class)) + scale_fill_manual(values=c("#662d91", "grey")) + theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + ylab("Gene Count")
 dev.off()
+
+write.csv(H1H9_1D_TPM_Data, "H1H9_1Day_TPM_All.csv")
+
 ```
+
+```{r}
+library(GenomicRanges)
+
+geneRanges <- 
+    function(db, column="ENTREZID")
+{
+    g <- genes(db, columns=column)
+    col <- mcols(g)[[column]]
+    genes <- granges(g)[rep(seq_along(g), elementNROWS(col))]
+    mcols(genes)[[column]] <- as.character(unlist(col))
+    genes
+}
+
+splitColumnByOverlap <-
+    function(query, subject, column="ENTREZID", ...)
+{
+    olaps <- findOverlaps(query, subject, ...)
+    f1 <- factor(subjectHits(olaps),
+                 levels=seq_len(subjectLength(olaps)))
+    splitAsList(mcols(query)[[column]][queryHits(olaps)], f1)
+}
+
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+library(Homo.sapiens)
+
+ES_iN_merged_40kb_tad_calls <- read.delim("~/Dropbox/Repaired-Seq/data/Hi-C/ES_iN_merged_40kb_tad_calls.bed", header=FALSE)
+ES_iN_merged_40kb_tad_calls$ID <- seq.int(nrow(ES_iN_merged_40kb_tad_calls))
+write.table(ES_iN_merged_40kb_tad_calls, file="ES_iN_merged_40kb_tad_calls_NEW.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+colnames(ES_iN_merged_40kb_tad_calls) <- c("Chr", "Start", "Stop")
+ES_iN_merged_40kb_tad_calls$Width <- abs(ES_iN_merged_40kb_tad_calls$Stop - ES_iN_merged_40kb_tad_calls$Start)
+ES_iN_tads_gr <- makeGRangesFromDataFrame(ES_iN_merged_40kb_tad_calls, keep.extra.columns = TRUE)
+peakAnno_ES_iN_tads<- annotatePeak(H1H9_1D_Peaks, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+gns = geneRanges(Homo.sapiens, column="ENSEMBL")
+symInTad = splitColumnByOverlap(gns, ES_iN_tads_gr, "ENSEMBL")
+H1H9_All <- H1H9_1D_Data_All_TPM_All[,c(1,12,20,25)]
+H1H9_All_genic <- H1H9_1D_Data_Genic_TPM_Genic[,c(1,6,12,22)]
+H1H9_All_byTad <- pbapply::pblapply(symInTad, function(x) {merge(data.frame(x), H1H9_All_All,by.x=1, by.y ="ENSEMBL", all=FALSE)})
+H1H9_All_Genic_byTad <- pbapply::pblapply(symInTad, function(x) {merge(data.frame(x), H1H9_All_genic,by.x=1, by.y ="ENSEMBL", all=FALSE)})
+
+
+for (i in 1:1997) {
+  ES_iN_merged_40kb_tad_calls$Normalized_Peak_Repair[i] <- sum(H1H9_All_Genic_byTad[[i]]$repairTPM) / (ES_iN_merged_40kb_tad_calls$Width[i])#/nrow(H1H9_All_byTad[[i]]))
+  ES_iN_merged_40kb_tad_calls$Normalized_Salmon_Repair[i] <- sum(H1H9_All_Genic_byTad[[i]]$avg_Repair_TPM) / (ES_iN_merged_40kb_tad_calls$Width[i])#/nrow(H1H9_All_byTad[[i]]))
+  ES_iN_merged_40kb_tad_calls$Normalized_Salmon_Expression[i] <- sum(H1H9_All_Genic_byTad[[i]]$avg_RNA_TPM.Peaks) /(ES_iN_merged_40kb_tad_calls$Width[i])#/ nrow(H1H9_All_byTad[[i]]))
+  ES_iN_merged_40kb_tad_calls$FoldDifference[i] <- ES_iN_merged_40kb_tad_calls$Normalized_Salmon_Expression[i]/ES_iN_merged_40kb_tad_calls$Normalized_Peak_Repair[i]
+  ES_iN_merged_40kb_tad_calls$GeneCount[i] <- nrow(H1H9_All_Genic_byTad[[i]])
+  }
+
+ES_iN_merged_40kb_tad_calls$Class[ES_iN_merged_40kb_tad_calls$Normalized_Peak_Repair > 0] <- "Tads_w_Repair"
+ES_iN_merged_40kb_tad_calls$Class[ES_iN_merged_40kb_tad_calls$Normalized_Peak_Repair == 0] <- "Tads_wo_Repair"
+
+my.formula <- y ~ x
+
+ggplot(ES_iN_merged_40kb_tad_calls,aes(x=Normalized_Salmon_Expression, y=Normalized_Peak_Repair)) + geom_point(alpha = .6, size=1, shape=16,colour="#662d91") +theme_classic() + scale_color_manual(values=c("#662d91")) + scale_x_log10(limits = c(1e-9,1e-2)) + scale_y_log10(limits = c(1e-9,1e-2)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red") 
+
+
+
+ggplot(ES_iN_merged_40kb_tad_calls) + geom_point(aes(x=Width, y=Normalized_Salmon_Repair, colour=Width)) +theme_classic() # + scale_y_log10() #+ scale_x_log10() 
+ggplot(ES_iN_merged_40kb_tad_calls) + geom_point(aes(x=Width, y=Normalized_Salmon_Expression, colour=Width)) +theme_classic() #+ scale_y_log10() #+ scale_x_log10() 
+
+ggplot(ES_iN_merged_40kb_tad_calls) + geom_hist(aes4)
+
+ES_iN_merged_Eigen  <- read.table("~/RepairedSeq/HiC_AB_sorted.txt", quote="\"", comment.char="")
+ES_iN_merged_Eigen$ID <- seq.int(nrow(ES_iN_merged_Eigen))
+colnames(ES_iN_merged_Eigen) <- c("Chr", "Start", "Stop","Compartment")
+ES_iN_merged_Eigen$Width <- abs(ES_iN_merged_Eigen$Stop - ES_iN_merged_Eigen$Start)
+ES_iN_Eigen_gr <- makeGRangesFromDataFrame(ES_iN_merged_Eigen, keep.extra.columns = TRUE)
+peakAnno_ES_iN_Eigen<- annotatePeak(H1H9_1D_Peaks, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+gns = geneRanges(Homo.sapiens, column="ENSEMBL")
+symInAB = splitColumnByOverlap(gns, ES_iN_Eigen_gr, "ENSEMBL")
+H1H9_All <- H1H9_1D_Data_All_TPM_All[,c(1,12,20,25)]
+H1H9_All_byAB <- pbapply::pblapply(symInAB, function(x) {merge(data.frame(x), H1H9_All,by.x=1, by.y ="ENSEMBL", all=FALSE)})
+
+for (i in 1:1997) {
+  ES_iN_merged_Eigen$Normalized_Peak_Repair[i] <- sum(H1H9_All_byAB[[i]]$repairTPM) / (ES_iN_merged_Eigen$Width[i])#/nrow(H1H9_All_byTad[[i]]))
+  ES_iN_merged_Eigen$Normalized_Salmon_Repair[i] <- sum(H1H9_All_byAB[[i]]$avg_Repair_TPM) / (ES_iN_merged_Eigen$Width[i])#/nrow(H1H9_All_byTad[[i]]))
+  ES_iN_merged_Eigen$Normalized_Salmon_Expression[i] <- sum(H1H9_All_byAB[[i]]$avg_RNA_TPM.Salmon) /(ES_iN_merged_Eigen$Width[i])#/ nrow(H1H9_All_byTad[[i]]))
+  ES_iN_merged_Eigen$FoldDifference[i] <- ES_iN_merged_Eigen$Normalized_Salmon_Expression[i]/ES_iN_merged_Eigen$Normalized_Peak_Repair[i]
+  
+}
+
+
+
+p <- ggplot(ES_iN_merged_Eigen) + geom_point(aes(x=Normalized_Salmon_Expression+.000000001, y=Normalized_Peak_Repair+.000000001, colour=Compartment)) +theme_classic() + scale_x_log10() + scale_y_log10()
+ggMarginal(p)
+
+ggplot(ES_iN_merged_Eigen) + geom_density(aes(x=Normalized_Salmon_Expression, colour=Compartment,fill=Compartment),alpha=.2, position = "dodge") + scale_x_log10() + theme_classic()
+ggplot(ES_iN_merged_Eigen) + geom_density(aes(x=Normalized_Peak_Repair, colour=Compartment,fill=Compartment),alpha=.2, position = "dodge") + scale_x_log10() + theme_classic()
+
+
+
+
+out <- read.delim("~/RepairedSeq/out.bed", header=FALSE)
+RepairPeaks_By_TAD <- out
+RepairPeaks_By_TAD <- RepairPeaks_By_TAD[,-c(16,17,18)]
+colnames(RepairPeaks_By_TAD) <- colnames(dba_1D_Common2_df)
+colnames(RepairPeaks_By_TAD)[16] <- "Tad"
+RepairPeaks_By_TAD_gr <- makeGRangesFromDataFrame(RepairPeaks_By_TAD, keep.extra.columns = TRUE)
+peakAnno_repairPeaksbyTad <- annotatePeak(RepairPeaks_By_TAD_gr, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+peakAnno_repairPeaksbyTad_df <- data.frame(peakAnno_repairPeaksbyTad)
+peakAnno_repairPeaksbyTad_df_split <- split(peakAnno_repairPeaksbyTad_df, peakAnno_repairPeaksbyTad_df$Tad)
+
+RepairPeaks_By_TAD <- out
+colnames(RepairPeaks_By_TAD) <- colnames(dba_1D_Common2_df)
+colnames(RepairPeaks_By_TAD)[16] <- "Tad_Chr"
+colnames(RepairPeaks_By_TAD)[17] <- "Tad_Start"
+colnames(RepairPeaks_By_TAD)[18] <- "Tad_End"
+colnames(RepairPeaks_By_TAD)[19] <- "Tad_ID"
+View(RepairPeaks_By_TAD)
+RepairPeaks_By_TAD$Tad_Width <- abs(RepairPeaks_By_TAD$Tad_End - RepairPeaks_By_TAD$Tad_Start)
+View(RepairPeaks_By_TAD)
+RepairPeaks_By_TAD_gr <- makeGRangesFromDataFrame(RepairPeaks_By_TAD, keep.extra.columns = TRUE)
+peakAnno_repairPeaksbyTad <- annotatePeak(RepairPeaks_By_TAD_gr, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+peakAnno_repairPeaksbyTad_df <- data.frame(peakAnno_repairPeaksbyTad)
+peakAnno_repairPeaksbyTad_df_split <- split(peakAnno_repairPeaksbyTad_df, peakAnno_repairPeaksbyTad_df$Tad_ID)
+
+
+
+ES_iN_merged_40kb_tad_calls_New <-  data.frame(matrix(vector(), 1974, 3,dimnames=list(c(), c("Peak_Repair_Total", "Peak_Repair_Norm2TadWidth", "GeneCount"))),stringsAsFactors=F)
+
+
+for (i in 1:1974) {
+  ES_iN_merged_40kb_tad_calls_New$Peak_Repair_Total[i] <- sum(peakAnno_repairPeaksbyTad_df_split[[i]]$Conc)
+  ES_iN_merged_40kb_tad_calls_New$Peak_Repair_Norm2TadWidth[i] <- sum(peakAnno_repairPeaksbyTad_df_split[[i]]$Conc) / peakAnno_repairPeaksbyTad_df_split[[i]]$Tad_Width[1]
+  ES_iN_merged_40kb_tad_calls_New$GeneCount[i] <- length(unique(peakAnno_repairPeaksbyTad_df_split[[i]]$SYMBOL))
+  ES_iN_merged_40kb_tad_calls_New$GeneDensity[i] <- length(unique(peakAnno_repairPeaksbyTad_df_split[[i]]$SYMBOL))/peakAnno_repairPeaksbyTad_df_split[[i]]$Tad_Width[1]
+  ES_iN_merged_40kb_tad_calls_New$TadWidth[i] <- peakAnno_repairPeaksbyTad_df_split[[i]]$Tad_Width[1]
+}
+
+ggplot(ES_iN_merged_40kb_tad_calls_New) + geom_point(aes(x=TadWidth, y=Peak_Repair_Total))  + scale_x_log10() + scale_y_log10() + theme_classic()
+
+
+TotalExpression_By_Tad <- read.delim("~/RepairedSeq/TotalExpression_By_Tad.bed", header=FALSE)
+TotalRepair_By_Tad <- read.delim("~/RepairedSeq/TotalRepair_By_Tad.bed", header=FALSE)
+PeakRepair_By_Tad <- read.delim("~/RepairedSeq/PeakRepair_By_Tad.bed", header=FALSE)
+colnames(TotalExpression_By_Tad) <- c("Chr", "Start", "Stop","H1_A_Expression","H1_B_Expression","H9_A_Expression","H9_B_Expression")
+colnames(TotalRepair_By_Tad) <- c("Chr", "Start", "Stop","H1_A_TotalRepair","H1_B_TotalRepair","H9_A_TotalRepair","H9_B_TotalRepair")
+colnames(PeakRepair_By_Tad) <- c("Chr", "Start", "Stop","H1_A_PeakRepair","H1_B_PeakRepair","H9_A_PeakRepair","H9_B_PeakRepair")
+
+for (i in 1:1997) {
+TotalExpression_By_Tad$RPK[i] <- rowMeans(TotalExpression_By_Tad[i,c(4,5,6,7)])/abs(TotalExpression_By_Tad[i,c(3)]-TotalExpression_By_Tad[i,c(2)])/1000
+TotalRepair_By_Tad$RPK[i] <- rowMeans(TotalRepair_By_Tad[i,c(4,5,6,7)])/abs(TotalRepair_By_Tad[i,c(3)]-TotalRepair_By_Tad[i,c(2)])/1000
+PeakRepair_By_Tad$RPK[i] <- rowMeans(PeakRepair_By_Tad[i,c(4,5,6,7)])/abs(PeakRepair_By_Tad[i,c(3)]-PeakRepair_By_Tad[i,c(2)])/1000
+}
+
+ScaleFactor_TotalExpression <- sum(TotalExpression_By_Tad$RPK) / 1000000
+ScaleFactor_TotalRepair <- sum(TotalRepair_By_Tad$RPK) / 1000000
+ScaleFactor_PeakRepair <- sum(PeakRepair_By_Tad$RPK) / 1000000
+
+TotalExpression_By_Tad$TotalExpressionTPM <- TotalExpression_By_Tad$RPK / ScaleFactor_TotalExpression
+TotalRepair_By_Tad$TotalRepairTPM <- TotalRepair_By_Tad$RPK / ScaleFactor_TotalRepair
+PeakRepair_By_Tad$PeakRepairTPM <- PeakRepair_By_Tad$RPK / ScaleFactor_PeakRepair
+
+All_TAD_Data <- cbind(TotalExpression_By_Tad,TotalRepair_By_Tad,PeakRepair_By_Tad)
+All_TAD_TPM_Data <- All_TAD_Data[,c(9,18,27)]
+All_TAD_TPM_Data2 <- All_TAD_Data[,c(1,2,3,9,18,27)]
+
+
+write.table(All_TAD_TPM_Data2, file="All_TAD_TPM_Data.txt", sep="\t", col.names = TRUE, row.names = FALSE)
+
+my.formula <- log(y) ~ log(x)
+ggplot(All_TAD_TPM_Data,aes(x=TotalExpressionTPM, y=PeakRepairTPM)) + geom_point(colour="#662d91",alpha = 1, size=1, shape=16) + theme_classic() + scale_x_log10(limits=c(-1,10000)) + scale_y_log10(limits=c(-1,10000))   
+ggplot(All_TAD_TPM_Data,aes(x=TotalExpressionTPM, y=TotalRepairTPM)) + geom_point(colour="#662d91",alpha = 1, size=1, shape=16) + theme_classic() + scale_x_log10(limits=c(-1,10000)) + scale_y_log10(limits=c(-1,10000))    
+
+####AB#####
+
+TotalExpression_By_AB <- read.delim("~/RepairedSeq/TotalExpression_By_AB_New.bed", header=FALSE)
+TotalRepair_By_AB <- read.delim("~/RepairedSeq/TotalRepair_By_AB_New.bed", header=FALSE)
+PeakRepair_By_AB <- read.delim("~/RepairedSeq/PeakRepair_By_AB_New.bed", header=FALSE)
+colnames(TotalExpression_By_AB) <- c("Chr", "Start", "Stop","EigenValue","H1_A_Expression","H1_B_Expression","H9_A_Expression","H9_B_Expression")
+colnames(TotalRepair_By_AB) <- c("Chr", "Start", "Stop","EigenValue","H1_A_TotalRepair","H1_B_TotalRepair","H9_A_TotalRepair","H9_B_TotalRepair")
+colnames(PeakRepair_By_AB) <- c("Chr", "Start", "Stop","EigenValue","H1_A_PeakRepair","H1_B_PeakRepair","H9_A_PeakRepair","H9_B_PeakRepair")
+
+
+for (i in 1:2856) {
+TotalExpression_By_AB$RPK[i] <- rowMeans(TotalExpression_By_AB[i,c(5,6,7,8)])/abs(TotalExpression_By_AB[i,c(3)]-TotalExpression_By_AB[i,c(2)])/1000
+TotalRepair_By_AB$RPK[i] <- rowMeans(TotalRepair_By_AB[i,c(5,6,7,8)])/abs(TotalRepair_By_AB[i,c(3)]-TotalRepair_By_AB[i,c(2)])/1000
+PeakRepair_By_AB$RPK[i] <- rowMeans(PeakRepair_By_AB[i,c(5,6,7,8)])/abs(PeakRepair_By_AB[i,c(3)]-PeakRepair_By_AB[i,c(2)])/1000
+}
+
+ScaleFactor_TotalExpression <- sum(TotalExpression_By_AB$RPK) / 1000000
+ScaleFactor_TotalRepair <- sum(TotalRepair_By_AB$RPK) / 1000000
+ScaleFactor_PeakRepair <- sum(PeakRepair_By_AB$RPK) / 1000000
+
+TotalExpression_By_AB$TotalExpressionTPM <- TotalExpression_By_AB$RPK / ScaleFactor_TotalExpression
+TotalRepair_By_AB$TotalRepairTPM <- TotalRepair_By_AB$RPK / ScaleFactor_TotalRepair
+PeakRepair_By_AB$PeakRepairTPM <- PeakRepair_By_AB$RPK / ScaleFactor_PeakRepair
+
+All_AB_Data <- cbind(TotalExpression_By_AB,TotalRepair_By_AB,PeakRepair_By_AB)
+All_AB_TPM_Data <- All_AB_Data[,c(4,10,20,30)]
+
+All_AB_TPM_Data$Compartment[All_AB_TPM_Data$EigenValue > 0] <- "A"
+All_AB_TPM_Data$Compartment[All_AB_TPM_Data$EigenValue < 0] <- "B"
+
+my.formula <- log(y) ~ log(x)
+p <- dplyr::filter(All_AB_TPM_Data, !is.na(EigenValue)) %>% ggplot(aes(x=TotalExpressionTPM+.001, y=PeakRepairTPM+.001)) + geom_point(alpha = 1, size=1, shape=16, aes(colour=EigenValue)) + theme_classic() + scale_x_log10() + scale_y_log10()
+dplyr::filter(All_AB_TPM_Data, !is.na(EigenValue)) %>% ggplot(aes(x=TotalExpressionTPM+.001, y=TotalRepairTPM+.001)) + geom_point(alpha = 1, size=1, shape=16, aes(colour=EigenValue)) + theme_classic()+ scale_x_log10() + scale_y_log10() 
+library(ggpubr)
+
+dplyr::filter(All_AB_TPM_Data, !is.na(EigenValue)) %>% ggplot() + geom_boxplot(aes(x=EigenValue, y=TotalExpressionTPM)) + theme_classic() + scale_y_log10() + stat_compare_means(aes(x=EigenValue, y=TotalExpressionTPM))
+dplyr::filter(All_AB_TPM_Data, !is.na(EigenValue)) %>% ggplot() + geom_boxplot(aes(x=EigenValue, y=TotalRepairTPM)) + theme_classic() + scale_y_log10()  + stat_compare_means(aes(x=EigenValue, y=TotalRepairTPM))
+dplyr::filter(All_AB_TPM_Data, !is.na(EigenValue)) %>% ggplot() + geom_violin(aes(x=EigenValue, y=PeakRepairTPM)) + theme_classic() + scale_y_log10()  + stat_compare_means(aes(x=EigenValue, y=PeakRepairTPM))
+
+####### Protein Coding Genes ####
+
+TotalExpression_By_Coding <- read.delim("~/RepairedSeq/TotalExpression_By_Coding.bed", header=FALSE)
+TotalRepair_By_Coding <- read.delim("~/RepairedSeq/TotalRepair_By_Coding.bed", header=FALSE)
+PeakRepair_By_Coding <- read.delim("~/RepairedSeq/PeakRepair_By_Coding.bed", header=FALSE)
+colnames(TotalExpression_By_Coding) <- c("Chr", "Start", "Stop","H1_A_Expression","H1_B_Expression","H9_A_Expression","H9_B_Expression")
+colnames(TotalRepair_By_Coding) <- c("Chr", "Start", "Stop","H1_A_TotalRepair","H1_B_TotalRepair","H9_A_TotalRepair","H9_B_TotalRepair")
+colnames(PeakRepair_By_Coding) <- c("Chr", "Start", "Stop","H1_A_PeakRepair","H1_B_PeakRepair","H9_A_PeakRepair","H9_B_PeakRepair")
+
+
+for (i in 1:15785) {
+TotalExpression_By_Coding$RPK[i] <- rowMeans(TotalExpression_By_Coding[i,c(4,5,6,7)])/abs(TotalExpression_By_Coding[i,c(3)]-TotalExpression_By_Coding[i,c(2)])/1000
+TotalRepair_By_Coding$RPK[i] <- rowMeans(TotalRepair_By_Coding[i,c(4,5,6,7)])/abs(TotalRepair_By_Coding[i,c(3)]-TotalRepair_By_Coding[i,c(2)])/1000
+PeakRepair_By_Coding$RPK[i] <- rowMeans(PeakRepair_By_Coding[i,c(4,5,6,7)])/abs(PeakRepair_By_Coding[i,c(3)]-PeakRepair_By_Coding[i,c(2)])/1000
+}
+
+ScaleFactor_TotalExpression <- sum(TotalExpression_By_Coding$RPK) / 1000000
+ScaleFactor_TotalRepair <- sum(TotalRepair_By_Coding$RPK) / 1000000
+ScaleFactor_PeakRepair <- sum(PeakRepair_By_Coding$RPK) / 1000000
+
+TotalExpression_By_Coding$TotalExpressionTPM <- TotalExpression_By_Coding$RPK / ScaleFactor_TotalExpression
+TotalRepair_By_Coding$TotalRepairTPM <- TotalRepair_By_Coding$RPK / ScaleFactor_TotalRepair
+PeakRepair_By_Coding$PeakRepairTPM <- PeakRepair_By_Coding$RPK / ScaleFactor_PeakRepair
+
+All_Coding_Data <- cbind(TotalExpression_By_Coding,TotalRepair_By_Coding,PeakRepair_By_Coding)
+All_Coding_TPM_Data <- All_Coding_Data[,c(9,18,27)]
+
+
+my.formula <- log(y) ~ log(x)
+ggplot(All_Coding_TPM_Data,aes(x=TotalExpressionTPM, y=PeakRepairTPM)) + geom_point(alpha = 1, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10()
+ggplot(All_Coding_TPM_Data,aes(x=TotalExpressionTPM, y=TotalRepairTPM)) + geom_point(alpha = 1, size=1, shape=16) + theme_classic()+ scale_x_log10() + scale_y_log10() 
+
+```
+
+
 
 ```{r}
 Peak_TotalReads_Data_Merged <- merge(H1H9_1D_Data_All,H1H9_1D_TPM_Data, by.x="ENSEMBL", by.y ="ENSEMBL", all=TRUE)
@@ -195,29 +601,23 @@ dev.off()
 ```{r}
 
 
-ClassData_Peaks <- split(H1H9_1D_Data_All, H1H9_1D_Data_All$Class)
-Class_1_Peaks <- ClassData_Peaks$Class_1
-Class_2_Peaks <- ClassData_Peaks$Class_2
-Class_3_Peaks <- ClassData_Peaks$Class_3
-Class_4_Peaks <- ClassData_Peaks$Class_4
+ClassData_Peaks <- split(OUT2_Filtered, OUT2_Filtered$Class2)
+Repair_Peaks <- ClassData_Peaks$Active
+noRepair_Peaks <- ClassData_Peaks$Genes_wo_Repair
 
 
-ClassData_TPM <- split(H1H9_1D_TPM_Data, H1H9_1D_TPM_Data$Class)
-Class_1_TPM <- ClassData_TPM$Class_1
-Class_2_TPM <- ClassData_TPM$Class_2
-Class_3_TPM <- ClassData_TPM$Class_3
-Class_4_TPM <- ClassData_TPM$Class_4
+ClassData_TPM <- split(H1H9_1D_TPM_Data, H1H9_1D_TPM_Data$Class2)
+Repair_Peaks_TPM <- ClassData_TPM$Active
+noRepair_TPM <- ClassData_TPM$Genes_wo_Repair
 
 pdf("H1H9_1D_Common_TotalReads_TPMs_vs_RNA_TPMs_Class4 with fit.pdf", paper="USr")
-model <- lm(log(avg_Repair_TPM) ~ log(avg_RNA_TPM), Class_4_TPM)
+model <- nlm(as.numeric(avg_Repair_TPM) ~as.numeric(avg_RNA_TPM), Repair_Peaks_TPM)
 
 pred <- data.frame(
-  x = Class_4_TPM$avg_RNA_TPM,
-  p = exp(predict(model, Class_4_TPM))
+  x = Repair_Peaks_TPM$avg_RNA_TPM,
+  p = exp(predict(model, Repair_Peaks_TPM))
 )
-ggplot(Class_4_TPM, aes(x=avg_RNA_TPM, y=avg_Repair_TPM)) +
-geom_point(alpha = 0.2, size=.5, aes(colour=Class)) +
-theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#662d91")) + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) + geom_line(data = pred, aes(x=x, y=p), col = "red")
+ggplot(Repair_Peaks_TPM, aes(x=avg_RNA_TPM, y=avg_Repair_TPM)) + geom_point(alpha = 0.2, size=.5, aes(colour=Class)) + theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#662d91"))  + geom_line(data = pred, aes(x=x, y=p), col = "red") + scale_x_log10() + scale_y_log10()
 dev.off()
 
 
@@ -232,11 +632,51 @@ b
 # (C) Gene ontology analysis for DNA repair hotspots.
 #Class 2 vs class 4
 # class 3 vs class 4
+library(clusterProfiler)
+pal1<-colorRampPalette(c("yellow","purple"))(20)
 
-ego4 <- enrichGO(gene=Class_4_Peaks$ENSEMBL, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
-pdf("H1H9_1D_Common_Class4_PeakTPMs_FunctionalAnalysis.pdf", paper="USr")
-barplot(ego4, showCategory=20)  + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
-dev.off()
+ego_repair_bp <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$repairTPM > 0], OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+ego_repair_cc <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$repairTPM > 0], OrgDb=org.Hs.eg.db, ont="CC", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+
+ego_rna_bp <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$avg_RNA_TPM.Peaks > 0], OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+ego_rna_cc <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$avg_RNA_TPM.Peaks > 0], OrgDb=org.Hs.eg.db, ont="CC", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+
+ego_repairSalmon_bp <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$avg_Repair_TPM > 0], OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+ego_repairSalmon_cc <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$avg_Repair_TPM > 0], OrgDb=org.Hs.eg.db, ont="CC", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+library(viridis)
+
+barplot(ego_repair_bp, showCategory=20)  + theme_classic() + scale_fill_viridis(direction = -1)
+barplot(ego_repair_cc, showCategory=20)  + theme_classic() + scale_fill_viridis(direction = -1)
+
+barplot(ego_rna_bp, showCategory=20)  + theme_classic() + scale_fill_viridis(direction = -1)
+barplot(ego_rna_cc, showCategory=20)  + theme_classic() + scale_fill_viridis(direction = -1)
+
+barplot(ego_repair_bp, showCategory=20)  + theme_classic() + scale_fill_viridis(direction = -1)
+barplot(ego_repair_cc, showCategory=20)  + theme_classic() + scale_fill_viridis(direction = -1)
+
+gost_repair <- gost(H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$repairTPM > 0], organism = "hsapiens", ordered_query = TRUE, multi_query = FALSE, significant = TRUE, exclude_iea = TRUE, measure_underrepresentation = FALSE, evcodes = FALSE,user_threshold = 0.05, correction_method = c("gSCS"),domain_scope = c("annotated"), custom_bg = NULL, sources = c("GO"))
+
+gost_repair_df <- data.frame(gost_repair$result)
+
+top10_bp <- head(arrange(gost_repair_df[gost_repair_df$source=="GO:CC",],p_value), n = 10)
+
+ggplot(top10_bp) + geom_bar(aes(x = reorder(term_name, -p_value), y=p_value, fill=-log10(p_value)), stat="identity") + scale_fill_viridis(option = c("C"), direction = -1) + coord_flip()  + theme_classic() +scale_y_log10()
+
+ego2 <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$repairTPM == 0], OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+ego2_cc <- enrichGO(gene=H1H9_All_Filtered$ENSEMBL[H1H9_All_Filtered$repairTPM == 0], OrgDb=org.Hs.eg.db, ont="CC", pvalueCutoff =0.05, keyType = 'ENSEMBL')
+barplot(ego2, showCategory=20)  + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+barplot(ego2_cc, showCategory=20)  + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+
+
+
+top20_cc <- head(arrange(gProfiler_RepairPeaks[gProfiler_RepairPeaks$source=="GO:CC",],adjusted_p_value), n = 20)
+
+
+
+ggplot(top20_cc) + geom_bar(aes(x = reorder(term_name, -adjusted_p_value), y=adjusted_p_value, fill=-log10(adjusted_p_value)), stat="identity") + scale_fill_viridis(option = c("C"), direction = -1) + coord_flip()  + theme_classic() + scale_y_log10()
+
+
+
 
 ```
 

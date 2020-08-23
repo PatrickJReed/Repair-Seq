@@ -30,9 +30,55 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 
 
 ```{r}
-## A
-## Sequence motifs identified both de novo and predicted as enriched in genome repair hotspots relative to randomly generated peaks.
+###GERP Analysis
+load("dba_1Day_EdU_None_ESCin.rda")
+###########
+dba_1Dog <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1Dog <- dba.analyze(dba_1Dog, method=DBA_DESEQ2)
+dba_1D_Report2 <- dba.report(dba_1Dog, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_Common2 <- dba_1D_Report2[dba_1D_Report2$FDR > .05]
+dba_1D_Common2_df <- data.frame(dba_1D_Common2)
 
+Gerp_in_Peaks <- read.delim("~/RepairedSeq/Gerp_in_Peaks.bed", header=FALSE)
+RepairPeaks_By_Gerp <-  split(Gerp_in_Peaks,Gerp_in_Peaks$V16)
+
+Gerp_by_Peak <-  data.frame(matrix(vector(), 37549, 2,dimnames=list(c(), c("Peak_Max_Gerp","Conc"))),stringsAsFactors=F)
+
+for (i in 1:37549) {
+  Gerp_by_Peak$Peak_Max_Gerp[i] <- max(RepairPeaks_By_Gerp[[i]]$V21)
+  Gerp_by_Peak$Conc[i] <- max(RepairPeaks_By_Gerp[[i]]$V6)
+}
+
+
+
+RepairPeaks_By_TAD <- out
+colnames(RepairPeaks_By_TAD) <- colnames(dba_1D_Common2_df)
+colnames(RepairPeaks_By_TAD)[16] <- "Tad_Chr"
+colnames(RepairPeaks_By_TAD)[17] <- "Tad_Start"
+colnames(RepairPeaks_By_TAD)[18] <- "Tad_End"
+colnames(RepairPeaks_By_TAD)[19] <- "Tad_ID"
+View(RepairPeaks_By_TAD)
+RepairPeaks_By_TAD$Tad_Width <- abs(RepairPeaks_By_TAD$Tad_End - RepairPeaks_By_TAD$Tad_Start)
+View(RepairPeaks_By_TAD)
+RepairPeaks_By_TAD_gr <- makeGRangesFromDataFrame(RepairPeaks_By_TAD, keep.extra.columns = TRUE)
+peakAnno_repairPeaksbyTad <- annotatePeak(RepairPeaks_By_TAD_gr, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
+peakAnno_repairPeaksbyTad_df <- data.frame(peakAnno_repairPeaksbyTad)
+peakAnno_repairPeaksbyTad_df_split <- split(peakAnno_repairPeaksbyTad_df, peakAnno_repairPeaksbyTad_df$Tad_ID)
+
+
+for (i in 1:57509) {
+TotalExpression_By_AB$RPK[i] <- rowMeans(TotalExpression_By_AB[i,c(5,6,7,8)])/abs(TotalExpression_By_AB[i,c(3)]-TotalExpression_By_AB[i,c(2)])/1000
+TotalRepair_By_AB$RPK[i] <- rowMeans(TotalRepair_By_AB[i,c(5,6,7,8)])/abs(TotalRepair_By_AB[i,c(3)]-TotalRepair_By_AB[i,c(2)])/1000
+PeakRepair_By_AB$RPK[i] <- rowMeans(PeakRepair_By_AB[i,c(5,6,7,8)])/abs(PeakRepair_By_AB[i,c(3)]-PeakRepair_By_AB[i,c(2)])/1000
+}
+
+ScaleFactor_TotalExpression <- sum(TotalExpression_By_AB$RPK) / 1000000
+ScaleFactor_TotalRepair <- sum(TotalRepair_By_AB$RPK) / 1000000
+ScaleFactor_PeakRepair <- sum(PeakRepair_By_AB$RPK) / 1000000
+
+TotalExpression_By_AB$TotalExpressionTPM <- TotalExpression_By_AB$RPK / ScaleFactor_TotalExpression
+TotalRepair_By_AB$TotalRepairTPM <- TotalRepair_By_AB$RPK / ScaleFactor_TotalRepair
+PeakRepair_By_AB$PeakRepairTPM <- PeakRepair_By_AB$RPK / ScaleFactor_PeakRepair
 
 ```
 
@@ -1350,6 +1396,7 @@ damageReport_NCS <- dba.report(dba_1D_Damage_NCS, th=1, bCalled = TRUE, bCounts 
 peakAnno_NCS <- annotatePeak(damageReport_NCS, TxDb=txdb, level="gene", annoDb="org.Hs.eg.db")
 peakAnno_NCS_df <- as.data.frame(peakAnno_NCS)
 write.table(peakAnno_NCS_df, file="peakAnno_NCS_df.txt", sep="\t", col.names = TRUE, row.names = FALSE)
+
 
 
 Repair_NCS <- as.data.frame(table(peakAnno_NCS@anno@elementMetadata@listData$ENSEMBL[peakAnno_NCS@detailGenomicAnnotation$Intergenic == FALSE]))

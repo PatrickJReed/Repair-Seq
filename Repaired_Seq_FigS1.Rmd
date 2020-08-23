@@ -56,13 +56,71 @@ gr <- keepStandardChromosomes(dba_1D_Common, pruning.mode="coarse")
 peakAnno_1D_Common <- annotatePeak(dba_1D_Common, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 ```
 
+
+```{r}
+### Load new dba and bcb objects.
+load("repairseq_dbaV2.rdata")
+load("repairseq_bcbV2.rda")
+
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, c("EdU"), mask=dba_H1H9_mask, merge="and")
+dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
+dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
+dba_EdU <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_EdU <- dba.analyze(dba_EdU, method=DBA_DESEQ2)
+dba_EdU_Report <- dba.report(dba_EdU, contrast=1, th=1, bUsePval=TRUE)
+dba_EdU_Common<- dba_EdU_Report[abs(dba_EdU_Report$Fold) < 1 & dba_EdU_Report$`FDR` > .05]
+
+
+dba.plotVolcano(dba_EdU)
+
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+dba_EdC_mask <- dba.mask(DBAobject,DBA_CONDITION, c("EdC"), mask=dba_H1H9_mask, merge="and")
+dba_EdC_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdC_mask, merge="and")
+dba_EdC_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdC_1Day_mask, merge="and")
+dba_EdC_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdC_1Day_None_mask, merge="and")
+dba_1Day_EdC_None_ESCin <- dba(DBAobject,dba_EdC_1Day_None_ESCin_mask)
+dba_EdC <- dba.contrast(dba_1Day_EdC_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_EdC <- dba.analyze(dba_EdC, method=DBA_DESEQ2)
+dba_EdC_Report <- dba.report(dba_EdC, contrast=1, th=1, bUsePval=TRUE)
+dba_EdC_Common<- dba_EdU_Report[abs(dba_EdC_Report$Fold) < 1 & dba_EdC_Report$`FDR` > .05]
+
+dba.plotVolcano(dba_EdC)
+
+# dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+# dba_EdUEdC_mask <- dba.mask(DBAobject,DBA_CONDITION, c("EdU_EdC"), mask=dba_H1H9_mask, merge="and")
+# dba_EdUEdC_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdUEdC_mask, merge="and")
+# dba_EdUEdC_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdUEdC_1Day_mask, merge="and")
+# dba_EdUEdC_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdUEdC_1Day_None_mask, merge="and")
+# dba_1Day_EdUEdC_None_ESCin <- dba(DBAobject,dba_EdUEdC_1Day_None_ESCin_mask)
+# dba_EdUEdC <- dba.contrast(dba_1Day_EdUEdC_None_ESCin, categories=DBA_ID, minMembers = 2)
+# dba_EdUEdC <- dba.analyze(dba_EdUEdC, method=DBA_DESEQ2)
+# dba_EdUEdC_Report <- dba.report(dba_EdUEdC, contrast=1, th=1, bUsePval=TRUE)
+# dba_EdUEdC_Common<- dba_EdUEdC_Report[abs(dba_EdUEdC_Report$Fold) < 1 & dba_EdUEdC_Report$`p-value` > .5]
+# 
+# 
+# dba.plotVolcano(dba_EdUEdC)
+
+f
+
+dba_1D_Common<- dba_1D_Report[abs(dba_1D_Report$Fold) < 1 & dba_1D_Report$`p-value` > .5]
+gr <- keepStandardChromosomes(dba_1D_Common, pruning.mode="coarse")
+
+#Annotate 1D peaks and plot genomic distribition
+peakAnno_1D_Common <- annotatePeak(dba_1D_Common, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+
+```
+
 ```{r}
 #(B) Reproducibility between biological replicates of H1 and H9 ESC-iNs.
 
-#df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Report)
-##Convert Diffbind object to GRanges object
-#gr <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
-#gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
+df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Report)
+#Convert Diffbind object to GRanges object
+gr <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
+gr <- keepStandardChromosomes(gr, pruning.mode="coarse") ##Remove dumb contigs
 
 H9 <- dba.peakset(dba_1Day_EdU_None_ESCin, 1:2, minOverlap=1, bRetrieve=TRUE, filter=1)
 H1 <- dba.peakset(dba_1Day_EdU_None_ESCin, 3:4, minOverlap=1, bRetrieve=TRUE, filter=1)
@@ -106,17 +164,22 @@ makeVennDiagram(Peaks=list(H1_A_subset_gr, H1_B_subset_gr),NameOfPeaks=c("H1_A",
 #df3 <- as.data.frame(gr)
 my.formula <- y ~ x
 #pdf("H9_Replicate_Correlation.pdf")
-ggplot(H9_subset_df, aes(x=H9, y=H9.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H9 ESC-iN Replicate 1") + ylab("H9 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
+ggplot(H9_subset_df, aes(x=H9, y=H9.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H9 ESC-iN Replicate 1") + ylab("H9 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500) +  geom_smooth(method='lm', formula= y~x)
 #dev.off()
 
 #pdf("H1_Replicate_Correlation.pdf")
 my.formula <- y ~ x
-ggplot(H1_subset_df, aes(x=H1, y=H1.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1 ESC-iN Replicate 1") + ylab("H1 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500)
+ggplot(H1_subset_df, aes(x=H1, y=H1.1)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1 ESC-iN Replicate 1") + ylab("H1 ESC-iN Replicate 2") + xlim(0,500) + ylim(0,500) +  geom_smooth(method='lm', formula= y~x)
 #dev.off()
+
+H1H9 <- dba.peakset(dba_1Day_EdU_None_ESCin, 1:4, minOverlap=1, bRetrieve=TRUE, filter=1)
+H1H9_df <- as.data.frame(H1H9)
+H1H9_df$H9_Average <- rowMeans(H1H9_df[,6:7])
+H1H9_df$H1_Average <- rowMeans(H1H9_df[,8:9])
 
 #pdf("H1_H9_Correlation.pdf")
 my.formula <- y ~ x
-ggplot(df, aes(x=H1_Average, y=H9_Average)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H1") + ylab("H9") + xlim(0,500) + ylim(0,500)
+ggplot(H1H9_df, aes(x=H9_Average, y=H1_Average)) + geom_point(size=.2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + xlab("H9") + ylab("H1") + xlim(0,500) + ylim(0,500)  +  geom_smooth(method='lm', formula= y~x)
 #dev.off()
 ```
 
@@ -126,7 +189,7 @@ ggplot(df, aes(x=H1_Average, y=H9_Average)) + geom_point(size=.2) + theme_classi
 
 #(E) Genome annotations for DNA repair hotspots.
 pdf("H1H9_1D_Common_Peaks_GenomicDistribution.pdf")
-plotAnnoPie(peakAnno_1D_Common) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
+plotAnnoPie(peakAnno_dba_1D_Common2) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
 dev.off()
 
 #Look at functional enrichemnt of genes with 1D peaks

@@ -32,51 +32,291 @@ anno86 <- annoGR(EnsDb.Hsapiens.v86)
 load("repairseq_dbaV2.rdata")
 #load("repairseq_bcbV2.rda")
 
-dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+#dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
 
 
-dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, c("EdU"), mask=dba_H1H9_mask, merge="and")
-dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
-dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
-dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
-dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
+#dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+#dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+#dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
+#dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
+#dba_1Day_EdU_None_ESCin <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
+#dba_1Day_EdU_None_ESCin <- dba.count(dba_1Day_EdU_None_ESCin)
+
+load("dba_1Day_EdU_None_ESCin.rda")
+###########
 dba_1Dog <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
 dba_1Dog <- dba.analyze(dba_1Dog, method=DBA_DESEQ2)
 dba_1D_Report2 <- dba.report(dba_1Dog, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
-dba_1D_Common2 <- dba_1D_Report2[abs(dba_1D_Report2$Fold) < 1 & dba_1D_Report2$`p-value` > .5]
+dba_1D_Common2 <- dba_1D_Report2[dba_1D_Report2$FDR > .05]
 dba_1D_Common2_df <- data.frame(dba_1D_Common2)
 peakAnno_dba_1D_Common2 <- annotatePeak(dba_1D_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
-peaksWithSequences_Repair_All <- getAllPeakSequence(dba_1D_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_Repair_All, "Repair_All.fa")
+write.table(dba_1D_Common2_df, file="dba_1D_Common2_NEW.bed", sep="\t", col.names = FALSE, row.names = FALSE)
 
-dba_ATAC_mask <- dba.mask(DBAobject,DBA_CONDITION, "ATAC", mask=dba_H1H9_mask, merge="and")
-dba_ATAC_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_ATAC_mask, merge="and")
-dba_ATAC_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_ATAC_1Day_mask, merge="and")
-dba_ATAC_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_ATAC_1Day_None_mask, merge="and")
-dba_1Day_ATAC_None_ESCin <- dba(DBAobject,dba_ATAC_1Day_None_ESCin_mask)
+peaksWithSequences_Repair_All <- getAllPeakSequence(dba_1D_Report2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_Repair_All, "Repair_All_Regions.fa")
+
+peaksWithSequences_Repair_Common <- getAllPeakSequence(dba_1D_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_Repair_Common, "Repair_Common_Regions.fa")
+
+df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Common2)
+gr_1D_Common <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
+gr_1D_Common <- keepStandardChromosomes(gr_1D_Common, pruning.mode="coarse") ##Remove dumb contigs
+
+dba_1D_Common_200bp <- resize(dba_1D_Common2, 200)
+peaksWithSequences_Repair_Common_200bp <- getAllPeakSequence(dba_1D_Common_200bp, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_Repair_Common_200bp, "Repair_Common_200bp_Regions.fa")
+
+common_peak_dist <- gr.dist(dba_1D_Common2)
+#dba_ATAC_mask <- dba.mask(DBAobject,DBA_CONDITION, "ATAC", mask=dba_H1H9_mask, merge="and")
+#dba_ATAC_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_ATAC_mask, merge="and")
+#dba_ATAC_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_ATAC_1Day_mask, merge="and")
+#dba_ATAC_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_ATAC_1Day_None_mask, merge="and")
+#dba_1Day_ATAC_None_ESCin <- dba(DBAobject,dba_ATAC_1Day_None_ESCin_mask)
+
+##load
+########
+load("dba_1Day_ATAC_None_ESCin.rda")
 dba_1D_ATAC <- dba.contrast(dba_1Day_ATAC_None_ESCin, categories=DBA_ID, minMembers = 2)
 dba_1D_ATAC <- dba.analyze(dba_1D_ATAC, method=DBA_DESEQ2)
 dba_1D_ATAC_Report2 <- dba.report(dba_1D_ATAC, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
-dba_1D_ATAC_Common2 <- dba_1D_ATAC_Report2[abs(dba_1D_ATAC_Report2$Fold) < 1 & dba_1D_ATAC_Report2$`p-value` > .5]
+dba_1D_ATAC_Common2 <- dba_1D_ATAC_Report2[dba_1D_ATAC_Report2$FDR > .05]
 dba_1D_ATAC_Common2_df <- data.frame(dba_1D_ATAC_Common2)
-peaksWithSequences_ATAC_All <- getAllPeakSequence(dba_1D_ATAC_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_ATAC_All, "ATAC_All.fa")
+peakAnno_dba_1D_ATAC_Common2<- annotatePeak(dba_1D_ATAC_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+write.table(dba_1D_ATAC_Common2_df, file="dba_1D_ATAC_Common2_NEW.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+peaksWithSequences_ATAC_All <- getAllPeakSequence(dba_1D_ATAC_Report2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_ATAC_All, "ATAC_All_Regions.fa")
+
+peaksWithSequences_ATAC_Common <- getAllPeakSequence(dba_1D_ATAC_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_ATAC_Common, "ATAC_Common_Regions.fa")
+
+df_1d_H1_vs_H9_ATAC <- as.data.frame(dba_1D_ATAC_Common2)
+gr_1D_Common_ATAC <- makeGRangesFromDataFrame(df_1d_H1_vs_H9_ATAC,keep.extra.columns = TRUE)  
+gr_1D_Common_ATAC <- keepStandardChromosomes(gr_1D_Common_ATAC, pruning.mode="coarse") ##Remove dumb contigs
 
 
-dba_H3K27Ac_mask <- dba.mask(DBAobject,DBA_CONDITION, "H3K27Ac", mask=dba_H1H9_mask, merge="and")
-dba_H3K27Ac_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_H3K27Ac_mask, merge="and")
-dba_H3K27Ac_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_H3K27Ac_1Day_mask, merge="and")
-dba_H3K27Ac_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_H3K27Ac_1Day_None_mask, merge="and")
-dba_1Day_H3K27Ac_None_ESCin <- dba(DBAobject,dba_H3K27Ac_1Day_None_ESCin_mask)
+
+#dba_H3K27Ac_mask <- dba.mask(DBAobject,DBA_CONDITION, "H3K27Ac", mask=dba_H1H9_mask, merge="and")
+#dba_H3K27Ac_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_H3K27Ac_mask, merge="and")
+#dba_H3K27Ac_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_H3K27Ac_1Day_mask, merge="and")
+#dba_H3K27Ac_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_H3K27Ac_1Day_None_mask, merge="and")
+#dba_1Day_H3K27Ac_None_ESCin <- dba(DBAobject,dba_H3K27Ac_1Day_None_ESCin_mask)
+#dba.count
+########
+load("dba_1Day_H3K27Ac_None_ESCin.rda")
 dba_1D_H3K27Ac <- dba.contrast(dba_1Day_H3K27Ac_None_ESCin, categories=DBA_ID, minMembers = 2)
 dba_1D_H3K27Ac <- dba.analyze(dba_1D_H3K27Ac, method=DBA_DESEQ2)
 dba_1D_H3K27Ac_Report2 <- dba.report(dba_1D_H3K27Ac, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
-dba_1D_H3K27Ac_Common2 <- dba_1D_H3K27Ac_Report2[abs(dba_1D_H3K27Ac_Report2$Fold) < 1 & dba_1D_H3K27Ac_Report2$`p-value` > .5]
+dba_1D_H3K27Ac_Common2 <- dba_1D_H3K27Ac_Report2[dba_1D_H3K27Ac_Report2$FDR > .05]
 dba_1D_H3K27Ac_Common2_df <- data.frame(dba_1D_H3K27Ac_Common2)
-peaksWithSequences_H3K27Ac_All <- getAllPeakSequence(dba_1D_H3K27Ac_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_H3K27Ac_All, "H3K27Ac_All.fa")
+peakAnno_dba_1D_H3K27Ac_Common2<- annotatePeak(dba_1D_H3K27Ac_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+write.table(dba_1D_H3K27Ac_Common2_df, file="dba_1D_H3K27Ac_Common2_NEW.bed", sep="\t", col.names = FALSE, row.names = FALSE)
 
-res2 <- makeVennDiagram(Peaks=list(dba_1D_Common2, dba_1D_ATAC_Common2, dba_1D_H3K27Ac_Common2),NameOfPeaks=c("Repair", "ATAC","H3K27Ac"))
+peaksWithSequences_H3K27Ac_All <- getAllPeakSequence(dba_1D_H3K27Ac_Report2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_H3K27Ac_All, "H3K27Ac_All_Regions.fa")
+
+peaksWithSequences_H3K27Ac_Common <- getAllPeakSequence(dba_1D_H3K27Ac_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_H3K27Ac_Common, "H3K27Ac_Common_Regions.fa")
+
+
+#dba_CTCF_mask <- dba.mask(repair_dba,DBA_CONDITION, "CTCF", mask=dba_H1H9_mask, merge="and")
+#dba_CTCF_1Day_mask <- dba.mask(repair_dba,DBA_FACTOR,"1Day",mask=dba_CTCF_mask, merge="and")
+#dba_CTCF_1Day_None_mask <- dba.mask(repair_dba,DBA_TREATMENT,"None",mask=dba_CTCF_1Day_mask, merge="and")
+#dba_CTCF_1Day_None_ESCin_mask <- dba.mask(repair_dba,DBA_TISSUE,"ESC-iN",mask=dba_CTCF_1Day_None_mask, merge="and")
+#dba_1Day_CTCF_None_ESCin <- dba(repair_dba,dba_CTCF_1Day_None_ESCin_mask)
+
+##load
+########
+load("dba_1Day_CTCF_None_ESCin.RData")
+dba_1D_CTCF <- dba.contrast(dba_1Day_CTCF_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D_CTCF <- dba.analyze(dba_1D_CTCF, method=DBA_DESEQ2)
+dba_1D_CTCF_Report2 <- dba.report(dba_1D_CTCF, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_CTCF_Common2 <- dba_1D_CTCF_Report2[dba_1D_CTCF_Report2$FDR > .05]
+dba_1D_CTCF_Common2_df <- data.frame(dba_1D_CTCF_Common2)
+peakAnno_dba_1D_CTCF_Common2<- annotatePeak(dba_1D_CTCF_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+write.table(dba_1D_CTCF_Common2_df, file="dba_1D_CTCF_Common2_NEW.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+peaksWithSequences_CTCF_All <- getAllPeakSequence(dba_1D_CTCF_Report2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_CTCF_All, "CTCF_All_Regions.fa")
+
+peaksWithSequences_CTCF_Common <- getAllPeakSequence(dba_1D_CTCF_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_CTCF_Common, "CTCF_Common_Regions.fa")
+
+df_1d_H1_vs_H9_CTCF <- as.data.frame(dba_1D_CTCF_Common2)
+gr_1D_Common_CTCF <- makeGRangesFromDataFrame(df_1d_H1_vs_H9_CTCF,keep.extra.columns = TRUE)  
+gr_1D_Common_CTCF <- keepStandardChromosomes(gr_1D_Common_CTCF, pruning.mode="coarse") ##Remove dumb contigs
+
+
+#dba_RNAPolII_mask <- dba.mask(repair_dba,DBA_CONDITION, "RNAPolII", mask=dba_H1H9_mask, merge="and")
+#dba_RNAPolII_1Day_mask <- dba.mask(repair_dba,DBA_FACTOR,"1Day",mask=dba_RNAPolII_mask, merge="and")
+#dba_RNAPolII_1Day_None_mask <- dba.mask(repair_dba,DBA_TREATMENT,"None",mask=dba_RNAPolII_1Day_mask, merge="and")
+#dba_RNAPolII_1Day_None_ESCin_mask <- dba.mask(repair_dba,DBA_TISSUE,"ESC-iN",mask=dba_RNAPolII_1Day_None_mask, merge="and")
+#dba_1Day_RNAPolII_None_ESCin <- dba(repair_dba,dba_RNAPolII_1Day_None_ESCin_mask)
+
+#load
+#######
+load("dba_1Day_RNAPolII_None_ESCin.rda")
+dba_1D_RNAPolII <- dba.contrast(dba_1Day_RNAPolII_None_ESCin, categories=DBA_ID, minMembers = 1)
+dba_1D_RNAPolII <- dba.analyze(dba_1D_RNAPolII, method=DBA_EDGER)
+dba_1D_RNAPolII_Report2 <- dba.report(dba_1D_RNAPolII, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_RNAPolII_Common2 <- dba_1D_RNAPolII_Report2[dba_1D_RNAPolII_Report2$FDR > .05]
+dba_1D_RNAPolII_Common2_df <- data.frame(dba_1D_RNAPolII_Common2)
+peakAnno_dba_1D_RNAPolII_Common2<- annotatePeak(dba_1D_RNAPolII_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+write.table(dba_1D_RNAPolII_Common2_df, file="dba_1D_RNAPolII_Common2_NEW.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+peaksWithSequences_RNAPolII_All <- getAllPeakSequence(dba_1D_RNAPolII_Report2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_RNAPolII_All, "RNAPolII_All_Regions.fa")
+
+peaksWithSequences_RNAPolII_Common <- getAllPeakSequence(dba_1D_RNAPolII_Common2, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
+write2FASTA(peaksWithSequences_RNAPolII_Common, "RNAPolII_Common_Regions.fa")
+
+df_1d_H1_vs_H9_RNAPolII <- as.data.frame(dba_1D_RNAPolII_Common2)
+gr_1D_Common_RNAPolII <- makeGRangesFromDataFrame(df_1d_H1_vs_H9_RNAPolII,keep.extra.columns = TRUE)
+gr_1D_Common_RNAPolII <- keepStandardChromosomes(gr_1D_Common_RNAPolII, pruning.mode="coarse") ##Remove dumb contigs
+
+
+dba.plotVolcano(dba_1Dog)
+dba.plotVolcano(dba_1D_ATAC)
+dba.plotVolcano(dba_1D_H3K27Ac)
+dba.plotVolcano(dba_1D_CTCF)
+
+
+res2 <- makeVennDiagram(Peaks=list(dba_1D_Report2,dba_1D_ATAC_Report2,dba_1D_H3K27Ac_Report2 ),NameOfPeaks=c("Repair","ATAC","H3K27Ac"))
+
+res2 <- makeVennDiagram(Peaks=list(dba_1D_Common2, dba_1D_CTCF_Common2),NameOfPeaks=c("Repair", "CTCF"))
+
+
+res2 <- makeVennDiagram(Peaks=list(dba_1D_Report2,makeGRangesFromDataFrame(dba_1Day_RNAPolII_None_ESCin$peaks)),NameOfPeaks=c("Repair","RNAPolII"))
+
+
+```
+
+```{r}
+8091+8631+14872+7176
+
+54599+7958+14872+8631
+    
+18279+7176+14872+7958
+    
+```
+```{r}
+
+load("dba_1Day_EdU_ATAC_H3K27Ac_ESCin.rda")
+
+dba_1D_EdU_ATAC_H3K27Ac <- dba.contrast(dba_1Day_EdU_ATAC_H3K27Ac_ESCin, categories=DBA_CONDITION, minMembers = 2)
+dba_1D_EdU_ATAC_H3K27Ac <- dba.analyze(dba_1D_EdU_ATAC_H3K27Ac, method=DBA_DESEQ2)
+dba_1D_EdU_ATAC_H3K27Ac_Report1 <- dba.report(dba_1D_EdU_ATAC_H3K27Ac, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_EdU_ATAC_H3K27Ac_Report2 <- dba.report(dba_1D_EdU_ATAC_H3K27Ac, contrast=2, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_EdU_ATAC_H3K27Ac_Report3 <- dba.report(dba_1D_EdU_ATAC_H3K27Ac, contrast=3, th=1, bUsePval=TRUE, bCounts = TRUE)
+
+
+dba_1D_EdU_ATAC_H3K27Ac_Report1_df <- data.frame(dba_1D_EdU_ATAC_H3K27Ac_Report1)
+dba_1D_EdU_ATAC_H3K27Ac_Report2_df <- data.frame(dba_1D_EdU_ATAC_H3K27Ac_Report2)
+dba_1D_EdU_ATAC_H3K27Ac_Report3_df <- data.frame(dba_1D_EdU_ATAC_H3K27Ac_Report3)
+
+
+merge12 <- merge(dba_1D_EdU_ATAC_H3K27Ac_Report1_df,dba_1D_EdU_ATAC_H3K27Ac_Report2_df,by=c("seqnames","start","end"), all=FALSE, suffixes=c(".1",".2"))
+merge123 <- merge(merge12,dba_1D_EdU_ATAC_H3K27Ac_Report3_df,by=c("seqnames","start","end"), all=FALSE, suffixes=c(".X",".3"))
+
+library(ggpubr)
+my_comparisons <- list( c("TRUE","FALSE"))
+
+EdU_DE <- merge123$Conc_EdU.X >= 1.5
+
+merge123$threshold <- EdU_DE 
+
+pdf("Fig_S3_Plots.pdf")
+ggplot(merge123[merge123$threshold2 == TRUE,]) + geom_point(aes(x=Conc_ATAC.1, y=Conc_H3K27Ac.X, colour=Conc_EdU.X),size=1, shape=16,alpha=.5) +theme_classic() + scale_color_viridis(option = "D", direction = -1) + scale_x_log10(limits = c(.1,10)) + scale_y_log10(limits = c(.1,10))
+
+ggplot(subset(merge123, !is.na(threshold)), aes(x=threshold,y=Conc_ATAC.1, fill=threshold)) + geom_boxplot() + stat_compare_means(comparisons = my_comparisons, method = "wilcox.test",label = "p.signif")  + theme_classic() + ylab("ATAC") + xlab("Repair Overlap") + scale_fill_viridis(discrete = TRUE) + scale_y_log10()
+ggplot(subset(merge123, !is.na(threshold)), aes(x=threshold,y=Conc_H3K27Ac.X,fill=threshold)) + geom_boxplot() + stat_compare_means(comparisons = my_comparisons,method = "wilcox.test",label = "p.signif")  + theme_classic() + ylab("H3K27Ac") + xlab("Repair Overlap") + scale_fill_viridis(discrete = TRUE)+ scale_y_log10()
+
+
+my.formula <- y ~ x
+ggplot(merge123,aes(x=Conc_EdU.X, y=Conc_H3K27Ac.X)) + geom_point(aes(x=Conc_EdU.X, y=Conc_H3K27Ac.X),size=1, shape=16,alpha=.3) +theme_classic() + xlim(0,10) + ylim(0,10) + geom_smooth(method = "lm", se=FALSE, color="red", formula = my.formula) + stat_poly_eq(formula = my.formula,aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE)
+ggplot(merge123,aes(x=Conc_EdU.X, y=Conc_ATAC.1)) + geom_point(aes(x=Conc_EdU.X, y=Conc_ATAC.1),size=1, shape=16,alpha=.3) +theme_classic() + xlim(0,10) + ylim(0,10) + geom_smooth(method = "lm", se=FALSE, color="red", formula = my.formula) + stat_poly_eq(formula = my.formula,aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE)
+ggplot(merge123,aes(x=Conc_ATAC.1, y=Conc_H3K27Ac.X)) + geom_point(aes(x=Conc_ATAC.1, y=Conc_H3K27Ac.X),size=1, shape=16,alpha=.3) +theme_classic() + xlim(0,10) + ylim(0,10) + geom_smooth(method = "lm", se=FALSE, color="red", formula = my.formula) + stat_poly_eq(formula = my.formula,aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE)
+
+dev.off()
+
+load("dba_1Day_CTCF_EdU_None_ESCin.rda")
+
+dba_1D_EdU_CTCF <- dba.contrast(dba_1Day_CTCF_EdU_None_ESCin, categories=DBA_CONDITION, minMembers = 2)
+
+dba_1D_EdU_CTCF <- dba.analyze(dba_1D_EdU_CTCF, method=DBA_DESEQ2)
+
+dba_1D_EdU_CTCF_Report1 <- dba.report(dba_1D_EdU_CTCF, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+
+dba_1D_EdU_CTCF_Report1_df <- data.frame(dba_1D_EdU_CTCF_Report1)
+
+pdf("Fig_EdU_CTCF.pdf")
+my.formula <- y ~ x
+ggplot(dba_1D_EdU_CTCF_Report1_df,aes(x=Conc_EdU, y=Conc_CTCF)) + geom_point(aes(x=Conc_EdU, y=Conc_CTCF),size=1, shape=16,alpha=.3) +theme_classic() + xlim(0,10) + ylim(0,10) + geom_smooth(method = "lm", se=FALSE, color="red", formula = my.formula) + stat_poly_eq(formula = my.formula,aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE)
+dev.off()
+
+
+##Genomic annotation
+Repair_or_CTCF <- union(dba_1D_Report2, dba_1D_CTCF_Report2)
+Repair_and_CTCF <- intersect(dba_1D_Report2, dba_1D_CTCF_Report2)
+Repair_Not_CTCF <- setdiff(dba_1D_Report2, dba_1D_CTCF_Report2)
+CTCF_Not_Repair <- setdiff(dba_1D_CTCF_Report2,dba_1D_Report2)
+
+peakAnno_Repair<- annotatePeak(dba_1D_Report2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_CTCF<- annotatePeak(dba_1D_CTCF_Report2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_Repair_and_CTCF<- annotatePeak(Repair_and_CTCF, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_Repair_Not_CTCF<- annotatePeak(Repair_Not_CTCF, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_CTCF_Not_Repair<- annotatePeak(CTCF_Not_Repair, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+
+pL <- list(Repair=peakAnno_Repair,CTCF=peakAnno_CTCF,Repair_and_CTCF=peakAnno_Repair_and_CTCF,Repair_Not_CTCF=peakAnno_Repair_Not_CTCF,CTCF_Not_Repair=peakAnno_CTCF_Not_Repair)
+
+#gL <- GRangesList(Repair_NOT_ATAC_NOT_H3K27Ac_gr=Repair_NOT_ATAC_NOT_H3K27Ac_gr,ATAC_NOT_Repair_NOT_H3K27Ac_gr=ATAC_NOT_Repair_NOT_H3K27Ac_gr,H3K27Ac_NOT_Repair_NOT_ATAC_gr=H3K27Ac_NOT_Repair_NOT_ATAC_gr,ATAC_Repair_NOT_H3K27Ac_gr_unique=ATAC_Repair_NOT_H3K27Ac_gr_unique,ATAC_H3K27Ac_NOT_Repair_gr_unique=ATAC_H3K27Ac_NOT_Repair_gr_unique,Repair_H3K27Ac_NOT_ATAC_gr_unique=Repair_H3K27Ac_NOT_ATAC_gr_unique,Repair_ATAC_H3K27Ac_Overlap_gr_unique=Repair_ATAC_H3K27Ac_Overlap_gr_unique)
+
+#peakAnnoList <- lapply(gL, annotatePeak, TxDb=txdb, tssRegion=c(-3000, 3000), verbose=TRUE)
+pdf("GenomicDist_CTCF_Repair.pdf")
+plotAnnoBar(pL,rotate=TRUE)
+dev.off()
+
+```
+
+
+
+
+```{r}
+
+EdU_On <- merge123$Conc_EdU.X >= 0 & merge123$Conc_ATAC.1 >= 0 & merge123$Conc_H3K27Ac.X > 0
+
+merge123$threshold2 <- EdU_On
+
+library(circlize)
+#mat1 <- normalizeToMatrix(makeGRangesFromDataFrame(merge123[merge123$threshold2 == TRUE,],keep.extra.columns = TRUE), dba_1D_Report2, value_column ="Conc_EdU.X", mean_mode = "w0", w = 50, extend = 3000)
+
+dba_1D_Common_Center <- resize(dba_1D_Common2, 1)
+dba_1D_Common_Center_df <- data.frame(dba_1D_Common_Center)
+write.table(dba_1D_Common_Center_df, file="dba_1D_Common_Center_df.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+dba_1D_Common_500bp <- resize(dba_1D_Common2, 500)
+dba_1D_Common_500bp_df <- data.frame(dba_1D_Common_500bp)
+write.table(dba_1D_Common_500bp_df, file="dba_1D_Common_500bp_df.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+mat3 <- normalizeToMatrix(makeGRangesFromDataFrame(merge123[merge123$threshold2 == TRUE,],keep.extra.columns = TRUE), dba_1D_Common_Center, value_column ="Conc_H3K27Ac.X", mean_mode = "absolute", extend = 3000, w = 50, background = 0, smooth = TRUE)
+mat2 <- normalizeToMatrix(makeGRangesFromDataFrame(merge123[merge123$threshold2 == TRUE,],keep.extra.columns = TRUE), dba_1D_Common_Center, value_column ="Conc_ATAC.1", mean_mode = "absolute", extend = 3000, w = 50, background = 0, smooth = TRUE)
+
+
+#col_fun_1 = colorRamp2(quantile(mat1, c(0, 0.99)), c("white", "red"))
+col_fun_2 = colorRamp2(quantile(mat2, c(0, 1)), c("white", "black"))
+col_fun_3 = colorRamp2(quantile(mat3, c(0, 1)), c("white", "black"))
+
+EnrichedHeatmap(mat2, column_title = "ATAC", col=c("white","black"), top_annotation = HeatmapAnnotation(lines2 = anno_enriched(gp = gpar(col = "black")))) +  EnrichedHeatmap(mat3, column_title = "H3K27Ac",col=c("white","black"), top_annotation = HeatmapAnnotation(lines2 = anno_enriched(gp = gpar(col = "black"))))
+
+
+```
+
+
+```{r}
+
+
+res2 <- makeVennDiagram(Peaks=list(dba_1D_Report2, dba_1D_ATAC_Report2, dba_1D_H3K27Ac_Report2),NameOfPeaks=c("Repair", "ATAC","H3K27Ac"))
 
 EdU_DE <- dba_1D_Common2_df$Conc >= 1.5 
 
@@ -98,10 +338,17 @@ dev.off()
 
 library(ggpubr)
 my_comparisons <- list( c("TRUE","FALSE"))
-ggplot(subset(EDU_ATAC_H3K27Ac, !is.na(threshold)), aes(x=threshold,y=Conc, color=threshold)) + geom_boxplot() + stat_compare_means(comparisons = my_comparisons)  + theme_classic() + ylab("H3K27Ac") + xlab("Repair Overlap") + scale_color_viridis(discrete = TRUE)
 
-ggplot(subset(EDU_ATAC_H3K27Ac, !is.na(threshold)), aes(x=threshold,y=Conc.ATAC,color=threshold)) + geom_boxplot() + stat_compare_means(comparisons = my_comparisons)  + theme_classic() + ylab("ATAC") + xlab("Repair Overlap") + + scale_color_viridis(discrete = TRUE)
+EdU_DE <- merge123$Conc_EdU.X >= 1.5
 
+merge123$threshold <- EdU_DE 
+
+ggplot(subset(merge123, !is.na(threshold)), aes(x=threshold,y=Conc_ATAC.1, colour=threshold, fill=threshold)) + geom_violin() + stat_compare_means(comparisons = my_comparisons, method = "wilcox.test",label = "p.signif")  + theme_classic() + ylab("ATAC") + xlab("Repair Overlap") + scale_color_viridis(discrete = TRUE) + scale_fill_viridis(discrete = TRUE) + scale_y_log10()
+
+ggplot(subset(merge123, !is.na(threshold)), aes(x=threshold,y=Conc_H3K27Ac.X, colour=threshold,fill=threshold)) + geom_violin() + stat_compare_means(comparisons = my_comparisons,method = "wilcox.test",label = "p.signif")  + theme_classic() + ylab("H3K27Ac") + xlab("Repair Overlap") + scale_color_viridis(discrete = TRUE) + scale_fill_viridis(discrete = TRUE)+ scale_y_log10()
+```
+
+```{r}
 
 
 ####NCS
@@ -137,6 +384,34 @@ my_comparisons <- list( c("BackGround","NCS_Gained"),c("BackGround","NCS_Lost"),
 p <- ggplot(NCS_EDU_ATAC_H3K27Ac)  + geom_boxplot(aes(x=Fold_Class,y=Conc.All+1.1)) + scale_y_log10() + theme_classic() 
 p + stat_compare_means(aes(x=NCS_EDU_ATAC_H3K27Ac$Fold_Class,y=NCS_EDU_ATAC_H3K27Ac$Conc.All), comparisons = my_comparisons)
 ggplot(NCS_EDU_ATAC_H3K27Ac)  + geom_boxplot(aes(x=Fold_Class,y=Conc.ATAC+1.03)) + scale_y_log10() + theme_classic() + stat_compare_means()
+
+
+
+
+pdf("1D_Common_RepairSeq_All21.pdf", paper="USr", width=24)
+
+dev.off()
+
+
+EnrichedHeatmap(mat1, column_title = "Repair", col= col_fun_1) + EnrichedHeatmap(mat2, column_title = "ATAC", col= col_fun_2) +  EnrichedHeatmap(mat3, column_title = "H3K27Ac", col= col_fun_3)
+
+
+EnrichedHeatmap(mat1a, column_title = "Repair", col= col_fun_1) + EnrichedHeatmap(mat1b, column_title = "Repair", col= col_fun_1) +  EnrichedHeatmap(mat1c, column_title = "Repair", col= col_fun_1) + EnrichedHeatmap(mat1d, column_title = "Repair", col= col_fun_1)
+
+tagMatrix_Repair <- getTagMatrix(makeGRangesFromDataFrame(dba_1Day_EdU_None_ESCin$peaks[[1]],keep.extra.columns = TRUE), windows =promoter, weightCol = "Reads")
+tagMatrix_ATAC <- getTagMatrix(makeGRangesFromDataFrame(dba_1Day_ATAC_None_ESCin$peaks[[1]],keep.extra.columns = TRUE), windows =promoter, weightCol = "Reads")
+tagMatrix_H3K27Ac <- getTagMatrix(makeGRangesFromDataFrame(dba_1Day_H3K27Ac_None_ESCin$peaks[[1]],keep.extra.columns = TRUE), windows =promoter, weightCol = "Reads")
+
+grl <- GRangesList("gr2" = makeGRangesFromDataFrame(dba_1Day_ATAC_None_ESCin$peaks[[1]],keep.extra.columns = TRUE), "gr3" = makeGRangesFromDataFrame(dba_1Day_H3K27Ac_None_ESCin$peaks[[1]],keep.extra.columns = TRUE))
+
+tagMatrixList <- pbapply::pblapply(grl, function(x) {
+     getTagMatrix(x, windows = gr_1D_Common, weightCol = "Reads")
+ })
+
+names(tagMatrixList) <- c("ATAC","H3K27Ac")
+tagHeatmap(tagMatrixList, xlim=c(-1000,1000), color=NULL)
+
+
 ```
 
 
@@ -164,13 +439,13 @@ ATAC_Repair_NOT_H3K27Ac_gr_unique <- makeGRangesFromDataFrame(ATAC_Repair_NOT_H3
 
 
 ## 1 ## Repair AND NOT ATAC OR H3K27Ac
-ATAC_OR_H3K27Ac <- union(dba_1D_ATAC_Common2,dba_1D_H3K27Ac_Common2)
-ATAC_OR_H3K27Ac_AND_Repair <- findOverlaps(ATAC_OR_H3K27Ac, dba_1D_Common2)
-Repair_NOT_ATAC_NOT_H3K27Ac <- setdiff(c(1:77460),subjectHits(ATAC_OR_H3K27Ac_AND_Repair))
-Repair_NOT_ATAC_NOT_H3K27Ac_gr <- dba_1D_Common2[Repair_NOT_ATAC_NOT_H3K27Ac]
+ATAC_OR_H3K27Ac <- union(dba_1D_ATAC_Report2,dba_1D_H3K27Ac_Report2)
+ATAC_OR_H3K27Ac_AND_Repair <- findOverlaps(ATAC_OR_H3K27Ac, dba_1D_Report2)
+Repair_NOT_ATAC_NOT_H3K27Ac <- setdiff(c(1:87913),subjectHits(ATAC_OR_H3K27Ac_AND_Repair))
+Repair_NOT_ATAC_NOT_H3K27Ac_gr <- dba_1D_Report2[Repair_NOT_ATAC_NOT_H3K27Ac]
 peakAnno_Repair_NOT_ATAC_NOT_H3K27Ac <- annotatePeak(Repair_NOT_ATAC_NOT_H3K27Ac_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 peaksWithSequences_Repair_NOT_ATAC_NOT_H3K27Ac <- getAllPeakSequence(Repair_NOT_ATAC_NOT_H3K27Ac_gr, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_Repair_NOT_ATAC_NOT_H3K27Ac, "Repair_NOT_ATAC_NOT_H3K27Ac.fa")
+write2FASTA(peaksWithSequences_Repair_NOT_ATAC_NOT_H3K27Ac, "Repair_NOT_ATAC_NOT_H3K27Ac_NEW.fa")
 
 Repair_NOT_ATAC_NOT_H3K27Ac_annotated_df <- data.frame(peakAnno_Repair_NOT_ATAC_NOT_H3K27Ac)
 Repair_NOT_ATAC_NOT_H3K27Ac_annotated_df_prmoter <- Repair_NOT_ATAC_NOT_H3K27Ac_annotated_df[Repair_NOT_ATAC_NOT_H3K27Ac_annotated_df$annotation == 'Promoter (<=1kb)',]
@@ -198,55 +473,55 @@ upsetplot(ego)
 dev.off()
 
 ## 2 ## ATAC AND NOT Repair OR H3K27Ac
-Repair_OR_H3K27Ac <- union(dba_1D_Common2, dba_1D_H3K27Ac_Common2)
-Repair_OR_H3K27Ac_AND_ATAC <- findOverlaps(Repair_OR_H3K27Ac, dba_1D_ATAC_Common2)
-ATAC_NOT_Repair_NOT_H3K27Ac <- setdiff(c(1:182270),subjectHits(Repair_OR_H3K27Ac_AND_ATAC))
-ATAC_NOT_Repair_NOT_H3K27Ac_gr <- dba_1D_ATAC_Common2[ATAC_NOT_Repair_NOT_H3K27Ac]
+Repair_OR_H3K27Ac <- union(dba_1D_Report2, dba_1D_H3K27Ac_Report2)
+Repair_OR_H3K27Ac_AND_ATAC <- findOverlaps(Repair_OR_H3K27Ac, dba_1D_ATAC_Report2)
+ATAC_NOT_Repair_NOT_H3K27Ac <- setdiff(c(1:51981),subjectHits(Repair_OR_H3K27Ac_AND_ATAC))
+ATAC_NOT_Repair_NOT_H3K27Ac_gr <- dba_1D_ATAC_Report2[ATAC_NOT_Repair_NOT_H3K27Ac]
 peakAnno_2 <- annotatePeak(ATAC_NOT_Repair_NOT_H3K27Ac_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 peaksWithSequences_ATAC_NOT_Repair_NOT_H3K27Ac <- getAllPeakSequence(ATAC_NOT_Repair_NOT_H3K27Ac_gr, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_ATAC_NOT_Repair_NOT_H3K27Ac, "ATAC_NOT_Repair_NOT_H3K27Ac.fa")
+write2FASTA(peaksWithSequences_ATAC_NOT_Repair_NOT_H3K27Ac, "ATAC_NOT_Repair_NOT_H3K27Ac_NEW.fa")
 
 
 ## 3 ## H3K27Ac AND NOT Repair OR ATAC
-Repair_OR_ATAC <- union(dba_1D_Common2, dba_1D_ATAC_Common2)
-Repair_OR_ATAC_AND_H3K27Ac <- findOverlaps(Repair_OR_ATAC, dba_1D_H3K27Ac_Common2)
-H3K27Ac_NOT_Repair_NOT_ATAC <- setdiff(c(1:112491), subjectHits(Repair_OR_ATAC_AND_H3K27Ac))
-H3K27Ac_NOT_Repair_NOT_ATAC_gr <- dba_1D_H3K27Ac_Common2[H3K27Ac_NOT_Repair_NOT_ATAC]
+Repair_OR_ATAC <- union(dba_1D_Report2, dba_1D_ATAC_Report2)
+Repair_OR_ATAC_AND_H3K27Ac <- findOverlaps(Repair_OR_ATAC, dba_1D_H3K27Ac_Report2)
+H3K27Ac_NOT_Repair_NOT_ATAC <- setdiff(c(1:46631), subjectHits(Repair_OR_ATAC_AND_H3K27Ac))
+H3K27Ac_NOT_Repair_NOT_ATAC_gr <- dba_1D_H3K27Ac_Report2[H3K27Ac_NOT_Repair_NOT_ATAC]
 peakAnno_3 <- annotatePeak(H3K27Ac_NOT_Repair_NOT_ATAC_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 peaksWithSequences_H3K27Ac_NOT_Repair_NOT_ATAC <- getAllPeakSequence(H3K27Ac_NOT_Repair_NOT_ATAC_gr, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_H3K27Ac_NOT_Repair_NOT_ATAC, "H3K27Ac_NOT_Repair_NOT_ATAC.fa")
+write2FASTA(peaksWithSequences_H3K27Ac_NOT_Repair_NOT_ATAC, "H3K27Ac_NOT_Repair_NOT_ATAC_NEW.fa")
 
 ## 4 ## ATAC AND REPAIR but NOT H3K27Ac
-ATAC_Repair_Overlap <- findOverlaps(dba_1D_Common2, dba_1D_ATAC_Common2)
-ATAC_Repair_Overlap_gr <- pintersect(dba_1D_Common2[queryHits(ATAC_Repair_Overlap)], dba_1D_ATAC_Common2[subjectHits(ATAC_Repair_Overlap)])
-ATAC_Repair_H3K27Ac_Overlap <- findOverlaps(ATAC_Repair_Overlap_gr, dba_1D_H3K27Ac_Common2)
-ATAC_Repair_NOT_H3K27Ac <- setdiff(c(1:62866),queryHits(ATAC_Repair_H3K27Ac_Overlap))
+ATAC_Repair_Overlap <- findOverlaps(dba_1D_Report2, dba_1D_ATAC_Report2)
+ATAC_Repair_Overlap_gr <- pintersect(dba_1D_Report2[queryHits(ATAC_Repair_Overlap)], dba_1D_ATAC_Report2[subjectHits(ATAC_Repair_Overlap)])
+ATAC_Repair_H3K27Ac_Overlap <- findOverlaps(ATAC_Repair_Overlap_gr, dba_1D_H3K27Ac_Report2)
+ATAC_Repair_NOT_H3K27Ac <- setdiff(c(1:24258),queryHits(ATAC_Repair_H3K27Ac_Overlap))
 ATAC_Repair_NOT_H3K27Ac_gr <- ATAC_Repair_Overlap_gr[ATAC_Repair_NOT_H3K27Ac]
 ATAC_Repair_NOT_H3K27Ac_df <- data.frame(ATAC_Repair_NOT_H3K27Ac_gr)
 ATAC_Repair_NOT_H3K27Ac_df_unique <- unique(ATAC_Repair_NOT_H3K27Ac_df)
 ATAC_Repair_NOT_H3K27Ac_gr_unique <- makeGRangesFromDataFrame(ATAC_Repair_NOT_H3K27Ac_df_unique,keep.extra.columns = FALSE)
 peakAnno_4 <- annotatePeak(ATAC_Repair_NOT_H3K27Ac_gr_unique, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 peaksWithSequences_ATAC_Repair_NOT_H3K27Ac <- getAllPeakSequence(ATAC_Repair_NOT_H3K27Ac_gr_unique, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_ATAC_Repair_NOT_H3K27Ac, "ATAC_Repair_NOT_H3K27Ac.fa")
+write2FASTA(peaksWithSequences_ATAC_Repair_NOT_H3K27Ac, "ATAC_Repair_NOT_H3K27Ac_NEW.fa")
 
 ## 5 ## ATAC AND H3K27Ac but NOT Repair
-ATAC_H3K27Ac_Overlap <- findOverlaps(dba_1D_H3K27Ac_Common2, dba_1D_ATAC_Common2)
-ATAC_H3K27Ac_Overlap_gr <- pintersect(dba_1D_H3K27Ac_Common2[queryHits(ATAC_H3K27Ac_Overlap)], dba_1D_ATAC_Common2[subjectHits(ATAC_H3K27Ac_Overlap)])
-ATAC_H3K27Ac_Repair_Overlap <- findOverlaps(ATAC_H3K27Ac_Overlap_gr, dba_1D_Common2)
-ATAC_H3K27Ac_NOT_Repair <- setdiff(c(1:96243),queryHits(ATAC_H3K27Ac_Repair_Overlap))
+ATAC_H3K27Ac_Overlap <- findOverlaps(dba_1D_H3K27Ac_Report2, dba_1D_ATAC_Report2)
+ATAC_H3K27Ac_Overlap_gr<- pintersect(dba_1D_H3K27Ac_Report2[queryHits(ATAC_H3K27Ac_Overlap)], dba_1D_ATAC_Report2[subjectHits(ATAC_H3K27Ac_Overlap)])
+ATAC_H3K27Ac_Repair_Overlap <- findOverlaps(ATAC_H3K27Ac_Overlap_gr, dba_1D_Report2)
+ATAC_H3K27Ac_NOT_Repair <- setdiff(c(1:27816),queryHits(ATAC_H3K27Ac_Repair_Overlap))
 ATAC_H3K27Ac_NOT_Repair_gr <- ATAC_H3K27Ac_Overlap_gr[ATAC_H3K27Ac_NOT_Repair]
 ATAC_H3K27Ac_NOT_Repair_df <- data.frame(ATAC_H3K27Ac_NOT_Repair_gr)
 ATAC_H3K27Ac_NOT_Repair_df_unique <- unique(ATAC_H3K27Ac_NOT_Repair_df)
 ATAC_H3K27Ac_NOT_Repair_gr_unique <- makeGRangesFromDataFrame(ATAC_H3K27Ac_NOT_Repair_df_unique,keep.extra.columns = FALSE)
 peakAnno_5 <- annotatePeak(ATAC_H3K27Ac_NOT_Repair_gr_unique, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 peaksWithSequences_ATAC_H3K27Ac_NOT_Repair<- getAllPeakSequence(ATAC_H3K27Ac_NOT_Repair_gr_unique, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_ATAC_H3K27Ac_NOT_Repair, "ATAC_H3K27Ac_NOT_Repair.fa")
+write2FASTA(peaksWithSequences_ATAC_H3K27Ac_NOT_Repair, "ATAC_H3K27Ac_NOT_Repair_NEW.fa")
 
 ## 6 ## H3K27Ac AND Repair but NOT ATAC
-Repair_H3K27Ac_Overlap <- findOverlaps(dba_1D_Common2, dba_1D_H3K27Ac_Common2)
-Repair_H3K27Ac_Overlap_gr <- pintersect(dba_1D_Common2[queryHits(Repair_H3K27Ac_Overlap)], dba_1D_H3K27Ac_Common2[subjectHits(Repair_H3K27Ac_Overlap)])
-Repair_H3K27Ac_ATAC_Overlap <- findOverlaps(Repair_H3K27Ac_Overlap_gr, dba_1D_ATAC_Common2)
-Repair_H3K27Ac_NOT_ATAC <- setdiff(c(1:37049),queryHits(Repair_H3K27Ac_ATAC_Overlap))
+Repair_H3K27Ac_Overlap <- findOverlaps(dba_1D_Report2, dba_1D_H3K27Ac_Report2)
+Repair_H3K27Ac_Overlap_gr <- pintersect(dba_1D_Report2[queryHits(Repair_H3K27Ac_Overlap)], dba_1D_H3K27Ac_Report2[subjectHits(Repair_H3K27Ac_Overlap)])
+Repair_H3K27Ac_ATAC_Overlap <- findOverlaps(Repair_H3K27Ac_Overlap_gr, dba_1D_ATAC_Report2)
+Repair_H3K27Ac_NOT_ATAC <- setdiff(c(1:32359),queryHits(Repair_H3K27Ac_ATAC_Overlap))
 Repair_H3K27Ac_NOT_ATAC_gr <- Repair_H3K27Ac_Overlap_gr[Repair_H3K27Ac_NOT_ATAC]
 Repair_H3K27Ac_NOT_ATAC_df <- data.frame(Repair_H3K27Ac_NOT_ATAC_gr)
 Repair_H3K27Ac_NOT_ATAC_df_unique <- unique(Repair_H3K27Ac_NOT_ATAC_df)
@@ -256,16 +531,21 @@ peaksWithSequences_Repair_H3K27Ac_NOT_ATAC<- getAllPeakSequence(Repair_H3K27Ac_N
 write2FASTA(peaksWithSequences_Repair_H3K27Ac_NOT_ATAC, "Repair_H3K27Ac_NOT_ATAC.fa")
 
 ## 7 ## Repair AND ATAC AND H3K27Ac
-Repair_ATAC_Overlap <- findOverlaps(dba_1D_Common2, dba_1D_ATAC_Common2)
-Repair_ATAC_Overlap_gr <- pintersect(dba_1D_Common2[queryHits(Repair_ATAC_Overlap)], dba_1D_ATAC_Common2[subjectHits(Repair_ATAC_Overlap)])
-Repair_ATAC_H3K27Ac_Overlap <- findOverlaps(Repair_ATAC_Overlap_gr, dba_1D_H3K27Ac_Common2)
-Repair_ATAC_H3K27Ac_Overlap_gr <- pintersect(Repair_ATAC_Overlap_gr[queryHits(Repair_ATAC_H3K27Ac_Overlap)], dba_1D_H3K27Ac_Common2[subjectHits(Repair_ATAC_H3K27Ac_Overlap)])
+Repair_ATAC_Overlap <- findOverlaps(dba_1D_Report2, dba_1D_ATAC_Report2)
+Repair_ATAC_Overlap_gr <- pintersect(dba_1D_Report2[queryHits(Repair_ATAC_Overlap)], dba_1D_ATAC_Report2[subjectHits(Repair_ATAC_Overlap)])
+Repair_ATAC_H3K27Ac_Overlap <- findOverlaps(Repair_ATAC_Overlap_gr, dba_1D_H3K27Ac_Report2)
+Repair_ATAC_H3K27Ac_Overlap_gr <- pintersect(Repair_ATAC_Overlap_gr[queryHits(Repair_ATAC_H3K27Ac_Overlap)], dba_1D_H3K27Ac_Report2[subjectHits(Repair_ATAC_H3K27Ac_Overlap)])
 Repair_ATAC_H3K27Ac_Overlap_df <- data.frame(Repair_ATAC_H3K27Ac_Overlap_gr)
 Repair_ATAC_H3K27Ac_Overlap_df_unique <- unique(Repair_ATAC_H3K27Ac_Overlap_df)
 Repair_ATAC_H3K27Ac_Overlap_gr_unique <- makeGRangesFromDataFrame(Repair_ATAC_H3K27Ac_Overlap_df_unique,keep.extra.columns = FALSE)  
 peakAnno_7 <- annotatePeak(Repair_ATAC_H3K27Ac_Overlap_gr_unique, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 peaksWithSequences_Repair_ATAC_H3K27Ac_Overlap<- getAllPeakSequence(Repair_ATAC_H3K27Ac_Overlap_gr_unique, upstream=0, downstream=0, genome=BSgenome.Hsapiens.UCSC.hg38)
-write2FASTA(peaksWithSequences_Repair_ATAC_H3K27Ac_Overlap, "Repair_ATAC_H3K27Ac_Overlap.fa")
+write2FASTA(peaksWithSequences_Repair_ATAC_H3K27Ac_Overlap, "Repair_ATAC_H3K27Ac_Overlap_NEW.fa")
+
+
+test <- combine(dba_1D_Report2,dba_1D_ATAC_Report2)
+
+
 
 gene <- seq2gene(Repair_ATAC_H3K27Ac_Overlap_gr, tssRegion = c(-1000, 1000), flankDistance = 3000, TxDb=txdb, sameStrand=FALSE)
 ego <- enrichGO(gene=gene, OrgDb=org.Hs.eg.db, ont="BP", pvalueCutoff =0.05)
@@ -274,18 +554,21 @@ pdf("Repair_ATAC_H3K27Ac_GeneOntology.pdf")
 barplot(ego, showCategory=20) + theme_classic() + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5))
 dev.off()
 
-peakAnno_8 <- annotatePeak(dba_1D_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
-peakAnno_9 <- annotatePeak(dba_1D_ATAC_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
-peakAnno_10 <- annotatePeak(dba_1D_H3K27Ac_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_8 <- annotatePeak(dba_1D_Report2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_9 <- annotatePeak(dba_1D_ATAC_Report2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_10 <- annotatePeak(dba_1D_H3K27Ac_Report2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 
 pL <- list(Repair_NOT_ATAC_NOT_H3K27Ac=peakAnno_1,ATAC_NOT_Repair_NOT_H3K27Ac=peakAnno_2,H3K27Ac_NOT_Repair_NOT_ATAC=peakAnno_3,ATAC_Repair_NOT_H3K27Ac=peakAnno_4,ATAC_H3K27Ac_NOT_Repair=peakAnno_5,Repair_H3K27Ac_NOT_ATAC=peakAnno_6,Repair_ATAC_H3K27Ac_Overlap=peakAnno_7,Repair_All=peakAnno_8,ATAC_All=peakAnno_9,H3K27Ac_All=peakAnno_10)
+
+pL2 <- list(Repair_NOT_ATAC_NOT_H3K27Ac=peakAnno_Repair_NOT_ATAC_NOT_H3K27Ac,ATAC_NOT_Repair_NOT_H3K27Ac=peakAnno_2,H3K27Ac_NOT_Repair_NOT_ATAC=peakAnno_3,Repair_ATAC_H3K27Ac_Overlap=peakAnno_7,Repair_All=peakAnno_8,ATAC_All=peakAnno_9,H3K27Ac_All=peakAnno_10)
 
 #gL <- GRangesList(Repair_NOT_ATAC_NOT_H3K27Ac_gr=Repair_NOT_ATAC_NOT_H3K27Ac_gr,ATAC_NOT_Repair_NOT_H3K27Ac_gr=ATAC_NOT_Repair_NOT_H3K27Ac_gr,H3K27Ac_NOT_Repair_NOT_ATAC_gr=H3K27Ac_NOT_Repair_NOT_ATAC_gr,ATAC_Repair_NOT_H3K27Ac_gr_unique=ATAC_Repair_NOT_H3K27Ac_gr_unique,ATAC_H3K27Ac_NOT_Repair_gr_unique=ATAC_H3K27Ac_NOT_Repair_gr_unique,Repair_H3K27Ac_NOT_ATAC_gr_unique=Repair_H3K27Ac_NOT_ATAC_gr_unique,Repair_ATAC_H3K27Ac_Overlap_gr_unique=Repair_ATAC_H3K27Ac_Overlap_gr_unique)
 
 #peakAnnoList <- lapply(gL, annotatePeak, TxDb=txdb, tssRegion=c(-3000, 3000), verbose=TRUE)
 pdf("GenomicDist_ATAC_H3K27Ac_Repair.pdf")
-plotAnnoBar(pL)
+plotAnnoBar(pL2,rotate=TRUE)
 dev.off()
+
 
 
 ##Doesent work without replicates
@@ -356,7 +639,7 @@ EDU_ATAC <- merge(dba_1D_Common2_df,dba_1D_ATAC_Common2_df,by=c("seqnames","star
 
 EDU_ATAC_H3K27Ac <- merge(EDU_ATAC,dba_1D_H3K27Ac_Common2_df,by=c("seqnames","start","end"), all=FALSE, suffixes=c(".X",".H3K27Ac"))
 
-ggplot(EDU_ATAC_H3K27Ac) + geom_point(aes(x=Conc.ATAC, y=Conc, colour=Conc.EdU),size=1, shape=16,alpha=.4) +theme_classic() + scale_color_viridis(option = "D") + scale_x_log10() + scale_y_log10() + facet_wrap(~ cut_number(Conc.EdU,8),nrow = 2) + xlim(0,10) + ylim(0,10)
+ggplot(EDU_ATAC_H3K27Ac) + geom_point(aes(x=Conc.ATAC, y=Conc, colour=Conc.EdU),size=1, shape=16,alpha=.4) +theme_classic() + scale_color_viridis(option = "D")  #+ facet_wrap(~ cut_number(Conc.EdU,8),nrow = 2) + xlim(0,10) + ylim(0,10)
 
 ```
 
@@ -478,7 +761,7 @@ df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Common2)
 ##Convert Diffbind object to GRanges object
 gr_1D_Common <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
 gr_1D_Common <- keepStandardChromosomes(gr_1D_Common, pruning.mode="coarse") ##Remove dumb contigs
-ranges(gr_1D_Common) <- IRanges(start = as.integer(start(ranges(gr_1D_Common))), end = as.integer(end(ranges(gr_1D_Common))))
+ranges(gr_1D_Common) <- IRanges(start = as.integer(start(ranges(gr_1D_Common))), end = as.integer(start(ranges(gr_1D_Common)))+1000)
 
 #gr_1D_Common <- dropSeqlevels(gr_1D_Common,  c("chrX","chrY"), pruning.mode="coarse") ##Remove Sex Chomosomes
 ```
@@ -490,17 +773,26 @@ library(ggpmisc)
 
 my.formula <- y ~ x
 pdf("Genes_Repair_vs_NoRepair_Motif_Enrichment.pdf")
-ggplot(data = for_heatmap_final, aes(x = adj_p.value.x, y = adj_p.value.y)) +
-   geom_smooth(method = "lm", se=FALSE, color="black", formula = my.formula) +
+ggplot(data = for_heatmap_complete, aes(x = adj_p.value.Repair, y = adj_p.value.NoRepair)) +
+   geom_smooth(method = "lm", se=FALSE, color="red", formula = my.formula) +
    stat_poly_eq(formula = my.formula, 
                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
                 parse = TRUE) +         
-   geom_point() + scale_x_log10() + scale_y_log10() + theme_classic() + xlab("P-value motif enrichment genes with Repair") + ylab("P-value motif enrichment genes without Repair") 
+   geom_point() + scale_x_log10() + scale_y_log10() + theme_classic() + xlab("P-value motif enrichment genes with Repair") + ylab("P-value motif enrichment genes without Repair") + coord_fixed()
 dev.off()
 ```
 
 
 ```{r}
+
+dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+
+
+dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, c("EdU","ATAC","H3K27Ac"), mask=dba_H1H9_mask, merge="and")
+dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+dba_EdU_1Day_None_mask <- dba.mask(DBAobject,DBA_TREATMENT,"None",mask=dba_EdU_1Day_mask, merge="and")
+dba_EdU_1Day_None_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None_mask, merge="and")
+dba_1D <- dba(DBAobject,dba_EdU_1Day_None_ESCin_mask)
 
 gr1 <- makeGRangesFromDataFrame(dba_1D$peaks[[1]],keep.extra.columns = TRUE)
 gr1 <- keepStandardChromosomes(gr1,pruning.mode="coarse")
@@ -556,19 +848,8 @@ gr17 <- keepStandardChromosomes(gr17,pruning.mode="coarse")
 gr18 <- makeGRangesFromDataFrame(dba_1D$peaks[[18]],keep.extra.columns = TRUE)
 gr18 <- keepStandardChromosomes(gr18,pruning.mode="coarse")
 
-gr19 <- makeGRangesFromDataFrame(dba_1D$peaks[[19]],keep.extra.columns = TRUE)
-gr19 <- keepStandardChromosomes(gr19,pruning.mode="coarse")
 
-gr20 <- makeGRangesFromDataFrame(dba_1D$peaks[[20]],keep.extra.columns = TRUE)
-gr20 <- keepStandardChromosomes(gr20,pruning.mode="coarse")
-
-gr21 <- makeGRangesFromDataFrame(dba_1D$peaks[[21]],keep.extra.columns = TRUE)
-gr21 <- keepStandardChromosomes(gr21,pruning.mode="coarse")
-
-gr22 <- makeGRangesFromDataFrame(dba_1D$peaks[[22]],keep.extra.columns = TRUE)
-gr22 <- keepStandardChromosomes(gr22,pruning.mode="coarse")
-
-gL <- GRangesList(gr3 = gr3, gr1 = gr1, gr9 = gr9,gr15 = gr15, gr10 = gr10,gr13 = gr13, gr19 = gr19, gr21 = gr21)
+gL <- GRangesList(gr15 = gr15, gr16 = gr16, gr17 = gr17,gr18 = gr18)
 
 pdf("1D_ATAC_H3K27Ac_Repair_Overlap.pdf")
 res2 <- makeVennDiagram(Peaks=list(dba_1D_ATAC_Common2, dba_1D_Common2),NameOfPeaks=c("ATAC", "Repair"))
@@ -589,11 +870,9 @@ gL_H3K9me3 <- GRangesList(gr12 = gr12,g14 = gr14)
 #"ATAC_H9_1","ATAC_H1_1"
 #,"CTCF_H1","H3K27Ac_H1_1","H3K27Ac_H1_2","H3K9me3_H1_1","H3K27Ac_H9_1","H3K9me3_H9_1","CTCF_H9","H3K27Ac_H9_2","H3K27Ac_H9_3","H3K27Ac_H9_4"
 
-ranges(gr_1D_Common) <- IRanges(start = as.integer(start(ranges(gr_1D_Common) + (end(ranges(gr_1D_Common)) - start(ranges(gr_1D_Common))))/2 - 3000), end = as.integer(start(ranges(gr_1D_Common) + (end(ranges(gr_1D_Common)) - start(ranges(gr_1D_Common))))/2 + 3000))
+ranges(gr_1D_Common) <- IRanges(start = as.integer(start(ranges(gr_1D_Common) + (end(ranges(gr_1D_Common)) - start(ranges(gr_1D_Common))))/2 - 1000), end = as.integer(start(ranges(gr_1D_Common) + (end(ranges(gr_1D_Common)) - start(ranges(gr_1D_Common))))/2 + 1000))
 
-# tagMatrixList_1 <- pbapply::pblapply(gL_All_1, function(x) {
-#      getTagMatrix(keepStandardChromosomes(x), windows = gr_1D_Common, weightCol = "RPKM")
-#  })
+tagMatrixList_1 <- pbapply::pblapply(gL, function(x) {getTagMatrix(keepStandardChromosomes(x), windows = gr_1D_Common, weightCol = "RPKM")})
 # 
 # tagMatrixList_2 <- pbapply::pblapply(gL_All_2, function(x) {
 #      getTagMatrix(keepStandardChromosomes(x), windows = gr_1D_Common, weightCol = "RPKM")
@@ -659,11 +938,10 @@ p + theme_classic() + scale_colour_few(name="Histone marks") +  guides(colour = 
 
 ```{r}
 pdf("1D_Common_RepairSeq_H3K9Me3.pdf")
-tagHeatmap(tagMatrixList_H3K9me3, xlim=c(-3000,3000), color=NULL)
 dev.off()
 
 pdf("1D_Common_RepairSeq_ATAC.pdf")
-tagHeatmap(tagMatrixList_ATAC, xlim=c(-3000,3000), color=NULL)
+tagHeatmap(tagMatrix_ATAC, xlim=c(-3000,3000), color=NULL)
 dev.off()
 
 pdf("1D_Common_RepairSeq_CTCF.pdf")
@@ -682,7 +960,7 @@ ranges(gr_1D_Common) <- IRanges(start = as.integer(start(ranges(gr_1D_Common))),
 #gL <- GRangesList(gr3 = gr3, gr1 = gr1, gr9 = gr9,gr15 = gr15, gr10 = gr10,gr13 = gr13,gr12 = gr12,g14 = gr14)
 
 
-mat1 <- normalizeToMatrix(gr3, tss, value_column ="RPKM",extend = 5000, mean_mode = "w0", w = 50)
+mat1 <- normalizeToMatrix(dba_1D_ATAC_Report2, gr_1D_Common, value_column ="Conc",extend = 5000, mean_mode = "w0", w = 50)
 mat2 <- normalizeToMatrix(gr1, tss, value_column ="RPKM",extend = 5000, mean_mode = "w0", w = 50)
 mat3 <- normalizeToMatrix(gr9, tss, value_column ="RPKM",extend = 5000, mean_mode = "w0", w = 50)
 mat4 <- normalizeToMatrix(gr15, tss, value_column ="RPKM",extend = 5000, mean_mode = "w0", w = 50)
@@ -690,6 +968,7 @@ mat5 <- normalizeToMatrix(gr10, tss, value_column ="RPKM",extend = 5000, mean_mo
 mat6 <- normalizeToMatrix(gr13, tss, value_column ="RPKM",extend = 5000, mean_mode = "w0", w = 50)
 mat7 <- normalizeToMatrix(gr19, tss, value_column ="RPKM",extend = 5000, mean_mode = "w0", w = 50)
 mat8 <- normalizeToMatrix(gr21, tss, value_column ="RPKM",extend = 5000, mean_mode = "w0", w = 50)
+library(circlize)
 col_fun_1 = colorRamp2(quantile(mat1, c(0, 0.99)), c("white", "red"))
 col_fun_2 = colorRamp2(quantile(mat2, c(0, 0.99)), c("white", "red"))
 col_fun_3 = colorRamp2(quantile(mat3, c(0, 0.99)), c("white", "red"))
@@ -701,9 +980,49 @@ col_fun_8 = colorRamp2(quantile(mat8, c(0, 0.99)), c("white", "red"))
 
 pdf("1D_Common_RepairSeq_All2.pdf", paper="USr", width=24)
 #EnrichedHeatmap(mat1, col = c("white", "red"), name = "ATAC_H1")
-EnrichedHeatmap(mat1, column_title = "ATAC_H1", col = col_fun_1) + EnrichedHeatmap(mat2, column_title = "ATAC_H9", col = col_fun_2) + EnrichedHeatmap(mat3, column_title = "CTCF_H1", col = col_fun_3) + EnrichedHeatmap(mat4, column_title = "CTCF_H9", col = col_fun_4) + EnrichedHeatmap(mat5, column_title = "H3K27Ac_H1", col = col_fun_5) + EnrichedHeatmap(mat6, column_title = "H3K27Ac_H9", col = col_fun_6) + EnrichedHeatmap(mat7, column_title = "Repair_H9", col = col_fun_7) + EnrichedHeatmap(mat8, column_title = "Repair_H1", col = col_fun_8)
+EnrichedHeatmap(mat1, column_title = "ATAC_H1") + EnrichedHeatmap(mat2, column_title = "ATAC_H9", col = col_fun_2) + EnrichedHeatmap(mat3, column_title = "CTCF_H1", col = col_fun_3) + EnrichedHeatmap(mat4, column_title = "CTCF_H9", col = col_fun_4) + EnrichedHeatmap(mat5, column_title = "H3K27Ac_H1", col = col_fun_5) + EnrichedHeatmap(mat6, column_title = "H3K27Ac_H9", col = col_fun_6) + EnrichedHeatmap(mat7, column_title = "Repair_H9", col = col_fun_7) + EnrichedHeatmap(mat8, column_title = "Repair_H1", col = col_fun_8)
 dev.off()
 
 
 ```
 
+```{r}
+library(reshape)
+library(dplyr)
+
+repair.genes <- read.delim("~/Desktop/ame-out-repair-genes.tsv")
+no.repair.genes <- read.delim("~/Desktop/ame-out-no_repair-genes.tsv")
+
+Repair_vs_NoRepair <- merge(repair.genes,no.repair.genes,by="motif_ID",suffixes = c(".Repair",".NoRepair"), all=TRUE)
+for_heatmap <- Repair_vs_NoRepair[,c(4,7,23)]
+for_heatmap <- for_heatmap[-c(1:9),]
+colnames(for_heatmap) <- c("motif_ID","Genes_w_Repair","Genes_wo_Repair")
+
+test2 <- melt(for_heatmap, id=c("motif_ID"))
+ggplot(test2) + geom_tile(aes(x=reorder(motif_ID, value), y=variable,fill=-log10(value))) + coord_equal() + theme_classic() + scale_fill_gradient(low="#2e86c1",high="#f1c40f") + theme(axis.text.x = element_text(angle = 90))
+
+
+
+```
+
+
+```{r}
+repair.genes <- read.delim("~/Desktop/ame-Genes_w_Repair.tsv")
+no.repair.genes <- read.delim("~/Desktop/ame_Genes_wo_Repair.tsv")
+
+Repair_vs_NoRepair <- merge(repair.genes,no.repair.genes,by="motif_ID",suffixes = c(".Repair",".NoRepair"), all=TRUE)
+for_heatmap <- Repair_vs_NoRepair[,c(1,7,23)]
+for_heatmap_complete <- for_heatmap[complete.cases(for_heatmap),]
+colnames(for_heatmap_complete) <- c("motif_ID","Genes_w_Repair","Genes_wo_Repair")
+for_heatmap_complete$diff <- log10(for_heatmap_complete$Genes_wo_Repair) -log10(for_heatmap_complete$Genes_w_Repair)
+#test <- for_heatmap_complete[for_heatmap_complete$diff>1,]
+
+test <- for_heatmap_complete %>% arrange(desc(diff)) %>% slice(1:50)
+test <- test[,-4]
+test2 <- melt(test, id=c("motif_ID"))
+ggplot(test2) + geom_tile(aes(x=reorder(motif_ID, value), y=variable,fill=-log10(value))) + coord_equal() + theme_classic() + scale_fill_gradient(low="#2e86c1",high="#f1c40f") + theme(axis.text.x = element_text(angle = 90))
+
+test3 <- test2 %>% arrange(desc(value)) %>% slice(1:50)
+    ggplot(test3) + geom_tile(aes(x=motif_ID, y=variable,fill=-log10(value))) +
+    coord_equal() + theme_classic() + scale_fill_gradient(low="#662d91",high="yellow")
+```

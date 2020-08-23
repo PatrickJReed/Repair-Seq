@@ -20,15 +20,98 @@ library("ggplot2")
 library("ggExtra")
 library("ggpmisc")
 library("VariantAnnotation")
-
+library("DescTools")
+library("reshape2")
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 anno86 <- annoGR(EnsDb.Hsapiens.v86)
 
 ```
 
+
+
+
 ```{r}
+
+
+
 ### Load new dba and bcb objects.
-load("repairseq_dbaV2.rdata")
+load("dba_1Day_EdU_None_NCS_ESCin.new.rda")
+dba <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba <- dba.analyze(dba, method=DBA_DESEQ2)
+#dba_Dox42 <- dba.report(dba, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_NCS <- dba.report(dba, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+
+dba_NCS_DE <- dba_NCS[dba_NCS$FDR <= .05]
+dba_NCS_DE_df <- data.frame(dba_NCS_DE)
+dba_NCS_Common <- dba_NCS[dba_NCS$FDR >= .05]
+dba_NCS_Common_df <- data.frame(dba_NCS_Common)
+
+dba_NCS_DE_Gain <- dba_NCS[dba_NCS$FDR <= .1 & dba_NCS$Fold <0]
+dba_NCS_DE_Gain_df <- data.frame(dba_NCS_DE_Gain)
+peakAnno_dba_NCS_DE_Gain <- annotatePeak(dba_NCS_DE_Gain, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba_NCS_DE_Lost <- dba_NCS[dba_NCS$FDR <= .1 & dba_NCS$Fold >0]
+dba_NCS_DE_Lost_df <- data.frame(dba_NCS_DE_Lost)
+peakAnno_dba_NCS_DE_Lost <- annotatePeak(dba_NCS_DE_Lost, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+peakAnno_dba_NCS_DE_Gain_df <- data.frame(peakAnno_dba_NCS_DE_Gain)
+peakAnno_dba_NCS_DE_Lost_df <- data.frame(peakAnno_dba_NCS_DE_Lost)
+
+write.table(dba_NCS_DE_Gain_df, file="dba_NCS_DE_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+write.table(dba_NCS_DE_Lost_df, file="dba_NCS_DE_Lost.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+dba_Dox42_DE <- dba_Dox42[dba_Dox42$FDR <= .05]
+dba_Dox42_DE_df <- data.frame(dba_Dox42_DE)
+dba_Dox42_Common <- dba_Dox42[dba_Dox42$FDR >= .05]
+dba_Dox42_Common_df <- data.frame(dba_Dox42_Common)
+
+dba_Dox42_DE_Gain <- dba_Dox42[dba_Dox42$FDR <= .05 & dba_Dox42$Fold < 0]
+dba_Dox42_DE_Gain_df <- data.frame(dba_Dox42_DE_Gain)
+dba_Dox42_DE_Lost <- dba_Dox42[dba_Dox42$FDR <= .05 & dba_Dox42$Fold > 0]
+dba_Dox42_DE_Lost_df <- data.frame(dba_Dox42_DE_Lost)
+
+dba.plotVolcano(dba)
+dba.plotVolcano(dba,contrast = 2)
+
+
+write.table(dba_1D_Common2_df, file="dba_1D_Common2.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+peakAnno_dba_1D_Common2 <- annotatePeak(dba_1D_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+df_1d_H1_vs_H9 <- as.data.frame(dba_1D_Common2)
+gr_1D_Common <- makeGRangesFromDataFrame(df_1d_H1_vs_H9,keep.extra.columns = TRUE)  
+gr_1D_Common <- keepStandardChromosomes(gr_1D_Common, pruning.mode="coarse") ##Remove dumb contigs
+
+
+
+
+
+dba.plotVolcano(dba_1Dog)
+dba.plotVolcano(dba_42D)
+dba.plotVolcano(dba_21v42)
+
+res3 <- makeVennDiagram(Peaks=list(gr_1D_Common, gr_42D_Common, gr_21v42_Common),NameOfPeaks=c("gr_1D_Common", "gr_42D_Common", "gr_21v42_Common"))
+
+
+df_21v42_Common <- as.data.frame(dba_21v42_Common)
+gr_21v42_Common <- makeGRangesFromDataFrame(df_21v42_Common,keep.extra.columns = TRUE)  
+gr_21v42_Common <- keepStandardChromosomes(gr_21v42_Common, pruning.mode="coarse") ##Remove dumb contigs
+
+
+dba_21v42_Report_DE <- dba.report(dba_21v42, contrast=1, th=.05, bUsePval= TRUE)
+df_dba_21v42_Report_DE <- as.data.frame(dba_21v42_Report_DE)
+df_dba_21v42_Report_Loss <- df_dba_21v42_Report_DE[df_dba_21v42_Report_DE$Fold > 0,]
+df_dba_21v42_Report_Gain <- df_dba_21v42_Report_DE[df_dba_21v42_Report_DE$Fold < 0,]
+
+gr_dba_21v42_Report_Loss <- makeGRangesFromDataFrame(df_dba_21v42_Report_Loss, keep.extra.columns = TRUE)  
+gr_dba_21v42_Report_Loss <- keepStandardChromosomes(gr_dba_21v42_Report_Loss, pruning.mode="coarse") ##Remove dumb contigs
+df_dba_21v42_Report_Loss <- as.data.frame(gr_dba_21v42_Report_Loss)
+write.table(df_dba_21v42_Report_Loss, file="dba_21v42_Report_Loss.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+gr_dba_21v42_Report_Gain <- makeGRangesFromDataFrame(df_dba_21v42_Report_Gain, keep.extra.columns = TRUE)  
+gr_dba_21v42_Report_Gain <- keepStandardChromosomes(gr_dba_21v42_Report_Gain, pruning.mode="coarse") ##Remove dumb contigs
+df_dba_21v42_Report_Gain <- as.data.frame(gr_dba_21v42_Report_Gain)
+write.table(df_dba_21v42_Report_Gain, file="dba_21v42_Report_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
 
 ##H9 Somatic SNV analysis
 
@@ -104,25 +187,241 @@ gr_H1_1D_EdU_Dox42_Report_Gain <- keepStandardChromosomes(gr_H1_1D_EdU_Dox42_Rep
 df_H1_1D_EdU_Dox42_Report_Gain <- as.data.frame(gr_H1_1D_EdU_Dox42_Report_Gain)
 write.table(df_H1_1D_EdU_Dox42_Report_Gain, file="dba_H1_Dox42_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
 
+idx1 <- indexTabix("H1-ensemble-annotated_3_Callers_Filtered.vcf.gz", "vcf")
+tab1 <- TabixFile("H1-ensemble-annotated_3_Callers_Filtered.vcf.gz", idx1)
+vcf_h1 <- readVcf("H1-ensemble-annotated_3_Callers_Filtered.vcf.gz", "hg38", row.names=FALSE)
+
+idx2 <- indexTabix("H9-ensemble-annotated_3_Callers_Filtered.vcf.gz", "vcf")
+tab2 <- TabixFile("H9-ensemble-annotated_3_Callers_Filtered.vcf.gz", idx2)
+vcf_h9 <- readVcf("H9-ensemble-annotated_3_Callers_Filtered.vcf.gz", "hg38", row.names=FALSE)
 
 
-p = dba.plotVolcano(dba_H9_1D_EdU_Dox42, bFlip = TRUE)
 
-p + theme_classic()
 
 ```
 
 ```{r}
-idx1 <- indexTabix("H1-ensemble-annotated_3_Callers.vcf.gz", "vcf")
-tab1 <- TabixFile("H1-ensemble-annotated_3_Callers.vcf.gz", idx1)
-vcf_h1 <- readVcf("H1-ensemble-annotated_3_Callers.vcf.gz", "hg38", row.names=FALSE)
+#sSNV QUESTIONS:
+#(1)	How far are sSNVs (Walsh) from SGRHs? (Box plot/histogram)
+Walsh_hg38_forR <- read.csv("~/RepairedSeq/Walsh_hg38_forR.csv")
 
-idx2 <- indexTabix("H9-ensemble-annotated_3_Callers.vcf.gz", "vcf")
-tab2 <- TabixFile("H9-ensemble-annotated_3_Callers.vcf.gz", idx2)
-vcf_h9 <- readVcf("H9-ensemble-annotated_3_Callers.vcf.gz", "hg38", row.names=FALSE)
+
+gr_Walsh <- makeGRangesFromDataFrame(Walsh_hg38_forR, keep.extra.columns = TRUE)  
+gr_Walsh <- keepStandardChromosomes(gr_Walsh, pruning.mode="coarse") ##Remove dumb contigs
+gr_Walsh_500bp <- resize(gr_Walsh, 500)
+
+Walsh_df <- data.frame(gr_Walsh_500bp)
+Walsh_df_unique <- Walsh_df[!duplicated(Walsh_df[,c('seqnames', 'start','end')]),]
+
+Walsh_unique_gr <- makeGRangesFromDataFrame(Walsh_df_unique)
+
+write.table(Walsh_hg38_forR, file="WalshDataNew.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+write.table(gr_Walsh_500bp, file="gr_Walsh_500bp.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+library(ggpubr)
+
+Gliomas_Data_forR <- read.delim("~/RepairedSeq/Gliomas_Data_forR.txt")
+gr_glioma <- makeGRangesFromDataFrame(Gliomas_Data_forR, keep.extra.columns = TRUE)
+gr_glioma <- keepStandardChromosomes(gr_glioma, pruning.mode="coarse") ##Remove dumb contigs
+gr_glioma_500bp <- resize(gr_glioma, 500)
+
+Glioma_df <- data.frame(gr_glioma)
+Glioma_df_unique <- Glioma_df[!duplicated(Glioma_df[,c('seqnames', 'start','end')]),]
+
+Glioma_unique_gr <- makeGRangesFromDataFrame(Glioma_df_unique)
+
+dba_1D_Common <- read.delim("~/RepairedSeq/dba_1D_Common2_NEW.sort.bed", header=FALSE)
+dba_1D_Common_Shuffle <- read.delim("~/RepairedSeq/dba_1D_Common2_NEW.shuffle.sort.bed", header=FALSE)
+
+
+colnames(dba_1D_Common)[1:3] <-c("Chr","Start","End")
+colnames(dba_1D_Common_Shuffle)[1:3] <-c("Chr","Start","End")
+
+dba_1D_Common_gr <- makeGRangesFromDataFrame(dba_1D_Common,keep.extra.columns = TRUE) 
+dba_1D_Common2_Shuffle_gr <- makeGRangesFromDataFrame(dba_1D_Common_Shuffle,keep.extra.columns = TRUE) 
+
+
+dist_walsh_2_repair <- data.frame(distanceToNearest(gr_Walsh,dba_1D_Common_gr))
+colnames(dist_walsh_2_repair)[3] <-c("distance_Repair")
+
+dist_walsh_2_random <- data.frame(distanceToNearest(gr_Walsh,dba_1D_Common2_Shuffle_gr))
+colnames(dist_walsh_2_random)[3] <-c("distance_random")
+
+
+dist_walsh <- merge(dist_walsh_2_repair,dist_walsh_2_random,by.x=1,by.y=1)
+dist_walsh_melt <- melt(dist_walsh, measure.vars=c(3,5))
+
+
+
+
+ggplot(dist_walsh_melt) + geom_boxplot(aes(x=variable,y=value, fill=variable)) + scale_y_log10() + theme_classic() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C")
+
+
+
+dist_to_repair_glioma <- data.frame(distanceToNearest(gr_glioma,dba_1D_Common_gr))
+colnames(dist_to_repair_glioma)[3] <-c("distance_Repair")
+dist_to_random_glioma <- data.frame(distanceToNearest(gr_glioma,dba_1D_Common2_Shuffle_gr))
+colnames(dist_to_random_glioma)[3] <-c("distance_random")
+
+dist_glioma <- merge(dist_to_repair_glioma,dist_to_random_glioma,by.x=1,by.y=1)
+dist_glioma_melt <- melt(dist_glioma, measure.vars=c(3,5))
+dist_glioma_melt$value <- dist_glioma_melt$value+1
+dist_walsh_melt$value <- dist_walsh_melt$value+1
+
+ggplot(dist_glioma_melt) + geom_violin(aes(x=variable,y=value+10, fill=variable)) + scale_y_log10() + theme_classic() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C")
+ggplot(dist_walsh_melt) + geom_violin(aes(x=variable,y=value+10, fill=variable)) + scale_y_log10() + theme_classic() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C")
+
+
+#Walsh_Data <- cbind(Walsh_hg38_forR,dist_to_repair_walsh$distance_Repair,dist_to_random_walsh$distance_random)
+#colnames(Walsh_Data)[19:20] <- c("distance_Repair","distance_random")
+Walsh_Data$Age_Group[Walsh_Data$Age <1] = "Infant"
+Walsh_Data$Age_Group[Walsh_Data$Age >15 & Walsh_Data$Age <20 ] = "Adolescent"
+Walsh_Data$Age_Group[Walsh_Data$Age >42 & Walsh_Data$Age <50 ] = "Adult"
+Walsh_Data$Age_Group[Walsh_Data$Age >75] = "Aged"
+
+Walsh_Data$Age_Group_New = factor(Walsh_Data$Age_Group, levels=c('Infant','Adolescent','Adult','Aged'))
+
+Walsh_Data_New <- melt(Walsh_Data, measure.vars=c(24,26))
+ggplot(Walsh_Data_New) + geom_boxplot(aes(x=variable,y=value+1, fill=variable)) + facet_wrap(~Age_Group_New) + scale_y_log10() + theme_classic() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C")
+
+Gliomas_Data_A <- merge(data.frame(gr_glioma),dist_to_repair_glioma,by.x=0,by.y=1)
+Gliomas_Data<- merge(Gliomas_Data_A,dist_to_random_glioma,by.x=0,by.y=1)
+
+colnames(Gliomas_Data)[19:20] <- c("distance_Repair","distance_random")
+
+
+Gliomas_Data_New <- melt(Gliomas_Data, measure.vars=c(19,21))
+ggplot(Gliomas_Data_New) + geom_boxplot(aes(x=variable,y=value+1, fill=variable)) + scale_y_log10() + theme_classic() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C")
+ggplot(Walsh_Data_New) + geom_boxplot(aes(x=variable,y=value+1, fill=variable)) + scale_y_log10() + theme_classic() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C")
+
+
+#Walsh_Data_pfc <- Walsh_Data[Walsh_Data$Region=="PFC",]
+#Walsh_Data_pfc_gr <- makeGRangesFromDataFrame(Walsh_Data_pfc, keep.extra.columns = TRUE)
+#Walsh_Data_pfc_gr_anno <- annotatePeak(Walsh_Data_pfc_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+#plotAnnoPie(Walsh_Data_pfc_gr_anno) + theme_classic()
+
+Walsh_Data_gr <- makeGRangesFromDataFrame(Walsh_Data, keep.extra.columns = TRUE)
+Walsh_Data_gr_anno <- annotatePeak(Walsh_Data_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+Walsh_Data_anno_df <- data.frame(Walsh_Data_gr_anno)
+library(DescTools)
+
+Walsh_Data_anno_df$annotation[Walsh_Data_gr_anno@detailGenomicAnnotation$Exon == "TRUE"] <- "Exon"
+Walsh_Data_anno_df$annotation[Walsh_Data_gr_anno@detailGenomicAnnotation$Intron == "TRUE"] <- "Intron"
+
+Walsh_Data_anno_df$annotation[Walsh_Data_anno_df$annotation %like% "Downstream%"] <- "Downstream"
+Walsh_Data_anno_df$annotation[Walsh_Data_anno_df$annotation %like% "Exon%"] <- "Exon"
+Walsh_Data_anno_df$annotation[Walsh_Data_anno_df$annotation %like% "Intron%"] <- "Intron"
+
+
+Walsh_Data_New2 <- melt(Walsh_Data_anno_df, measure.vars=21:22)
+ggplot(Walsh_Data_New2) + geom_boxplot(aes(x=variable,y=value+1, fill=variable)) + facet_wrap(~annotation) + scale_y_log10() + theme_classic() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C")
+
+
+
+Walsh_Data_pfc_anno <- annotatePeak(Walsh_Data_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+
+test2 <- melt(Walsh_Data, id=c("distance_Repair","distance_random"))
+
+
+
+
+library(tidyr)
+
+ggplot(Walsh_Data_anno_df, aes(x=distance_Repair+1,y=distance_random+1, colour=Age),size=1, shape=16,alpha=.5)  + geom_point() + geom_abline() + facet_wrap(~annotation) + theme_classic() + scale_x_log10() + scale_y_log10() #+ scale_color_manual(values=c("#662d91","#2e86c1","#f1c40f","black")) ,colour=Reference.Base
+
+Glioma_Data_distance_repair <- read.delim("~/RepairedSeq/Glioma_Data_distance_repair.bed", header=FALSE)
+Glioma_Data_distance_random <- read.delim("~/RepairedSeq/Glioma_Data_distance_random.bed", header=FALSE)
+colnames(Glioma_Data_distance_repair)[24] <- "Distance_To_Repair"
+colnames(Glioma_Data_distance_random)[13] <- "Distance_To_Random"
+
+Glioma_Data <- cbind(Glioma_Data_distance_repair,Glioma_Data_distance_random)
+Glioma_Data_Melt <- melt(Glioma_Data, measure.vars=c(24,37))
+Glioma_Data_Melt$value <- as.numeric(Glioma_Data_Melt$value)
+ggplot(Glioma_Data_Melt) + geom_violin(aes(x=variable,y=value, fill=variable))  + theme_classic() + scale_y_log10() + stat_compare_means(aes(x=variable,y=value)) + scale_fill_viridis_d(option="C") + facet_wrap(~V6)
+
+
+makeVennDiagram(Peaks=list(Walsh_unique_gr, dba_1D_Common_gr, dba_1D_Common2_Shuffle_gr,Glioma_unique_gr),NameOfPeaks=c("Somatic_SNVs", "Repair Sites", "Random Sites","Glioma_sSNVs"))
+
+#(2)	How many sSNVs overlaps with SGRHs?
+Walsh_df <- data.frame(gr_Walsh)
+Walsh_df_unique <- Walsh_df[!duplicated(Walsh_df[,c('seqnames', 'start','end')]),]
+
+Walsh_unique_gr <- makeGRangesFromDataFrame(Walsh_df_unique)
+
+dba_1D_Common2_df <- data.frame(dba_1D_Common2_gr)
+dba_1D_Common2_unique <- unique(dba_1D_Common2_df)
+dba_1D_Common2_unique_gr <- makeGRangesFromDataFrame(dba_1D_Common2_unique)
+
+dba_1D_Common2_gr_anno <- annotatePeak(dba_1D_Common2_unique_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba_1D_Common2_gr_anno_df <- data.frame(dba_1D_Common2_gr_anno)
+plotAnnoPie(dba_1D_Common2_gr_anno) + theme_classic()
+
+dba_1D_Common2_gr_anno_df$annotation[dba_1D_Common2_gr_anno@detailGenomicAnnotation$Exon == "TRUE"] <- "Exon"
+dba_1D_Common2_gr_anno_df$annotation[dba_1D_Common2_gr_anno@detailGenomicAnnotation$Intron == "TRUE"] <- "Intron"
+
+dba_1D_Common2_gr_anno_df$annotation[dba_1D_Common2_gr_anno_df$annotation %like% "Downstream"] <- "Downstream"
+dba_1D_Common2_gr_anno_df$annotation[dba_1D_Common2_gr_anno_df$annotation %like% "Exon"] <- "Exon"
+dba_1D_Common2_gr_anno_df$annotation[dba_1D_Common2_gr_anno_df$annotation %like% "Intron"] <- "Intron"
+
+dba_1D_ATAC_Common2_df <- data.frame(dba_1D_ATAC_Common2)
+dba_1D_ATAC_Common2_unique <- unique(dba_1D_ATAC_Common2_df)
+dba_1D_ATAC_Common2_unique_gr <- makeGRangesFromDataFrame(dba_1D_ATAC_Common2_unique)
+
+dba_1D_ATAC_gr_anno <- annotatePeak(dba_1D_ATAC_Common2_unique_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba_1D_ATAC_gr_anno_df <- data.frame(dba_1D_ATAC_gr_anno)
+plotAnnoPie(dba_1D_ATAC_gr_anno) + theme_classic()
+
+dba_1D_ATAC_gr_anno_df$annotation[dba_1D_ATAC_gr_anno@detailGenomicAnnotation$Exon == "TRUE"] <- "Exon"
+dba_1D_ATAC_gr_anno_df$annotation[dba_1D_ATAC_gr_anno@detailGenomicAnnotation$Intron == "TRUE"] <- "Intron"
+
+dba_1D_ATAC_gr_anno_df$annotation[dba_1D_ATAC_gr_anno_df$annotation %like% "Downstream"] <- "Downstream"
+dba_1D_ATAC_gr_anno_df$annotation[dba_1D_ATAC_gr_anno_df$annotation %like% "Exon"] <- "Exon"
+dba_1D_ATAC_gr_anno_df$annotation[dba_1D_ATAC_gr_anno_df$annotation %like% "Intron"] <- "Intron"
+
+dba_1D_ATAC_Common2_unique_gr_anno <- annotatePeak(dba_1D_ATAC_Common2_unique_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+plotAnnoPie(dba_1D_ATAC_Common2_unique_gr_anno) + theme_classic()
+
+#res <- makeVennDiagram(Peaks=list(Walsh_unique_gr, dba_1D_Common2_unique_gr, dba_1D_ATAC_Common2_unique_gr),NameOfPeaks=c("Somatic_SNVs", "Repair Sites", "ATAC Sites"))
+
+plotAnnoPie(Walsh_Data_pfc_gr_anno) + theme_classic() 
+
+
+#(3)	Are genes with SGRHs less likely to have mutations than those without SGRHs (total transcriptome list)
+ggplot(Walsh_new) + geom_bar(aes(x=Class)) + theme_classic() + facet_wrap(~annotation, nrow = 1) + theme(axis.text.x = element_text(angle = 90))
+
+#(4)	What is the chromatin context for sSNVs (ATAC/H3K27Ac/CTCF)
+
+#(5)	What motifs are associated with simulated peaks around sSNVs
+
+#(6)	What are the genomic annotations for sSNVs and how do they compare with Repair-Seq distribution?
+
+#(7)	Are genes that have SGRHs vs sSNVs genes more/less/equally likely to have declining transcription with age/disease?
+
+#(8)	Genomic distributions of sSNVS/Repair intersections vs sSNVs vs Repair
+
+#(9)	Are sSNVs more or less likely to occur at TAD boundaries? Does this mirror DNA repair? (JESSE DIXON – what data/graphs/questions?)
+
+#(10)	What are the COSMIC signatures for the mutations we observe in our WGS?
+
+
+#DNA damage:
+#(1)	What is the chromatin context for peaks gained/lost in NCS (ATAC/H3K27Ac/CTCF)?
+#(2)	What motifs are associated with peaks gained/lost in NCS?
+#(3)	What are the GO terms for peaks gained (use peaks lost as background)?
+#(4)	Can we detect sSNVs in peaks gained/lost in NCS?
+#(5)	Are there any length dependency for repair (Salmon/Peak TPMs)?
+#(6)	Do long genes with hotspots lose them more than short genes (Salmon/Peak TPMs)?
+
+
+
+```
+
+
+```{r}
 
 pdf("D42_Somatic_SNVs_H1_Peaks_Overlap.pdf")
-res <- makeVennDiagram(Peaks=list(vcf_h1@rowRanges, gr_H1_1D_EdU_Dox42_Common, gr_H1_1D_EdU_Dox42_Report_Gain,gr_H1_1D_EdU_Dox42_Report_Loss),NameOfPeaks=c("H1_sSNVs", "H1_commonPeaks", "H1_peaksGained","H1_peaksLost"))
+res <- makeVennDiagram(Peaks=list(vcf_h1@rowRanges, vcf_h9@rowRanges, gr_1D_Common),NameOfPeaks=c("H1_sSNVs", "H9_sSNVs", "D21_Common"))
 dev.off()
 
 pdf("D42_Somatic_SNVs_H9_Peaks_Overlap.pdf")
@@ -130,7 +429,7 @@ res2 <- makeVennDiagram(Peaks=list(vcf_h9@rowRanges, gr_H9_1D_EdU_Dox42_Common, 
 dev.off()
 
 pdf("Walsh_Somatic_SNVs_H9_Peaks_Overlap.pdf")
-res2 <- makeVennDiagram(Peaks=list(gr_Walsh, gr_H9_1D_EdU_Dox42_Common, gr_H9_1D_EdU_Dox42_Report_Gain,gr_H9_1D_EdU_Dox42_Report_Loss),NameOfPeaks=c("Walsh_sSNVs", "H9_commonPeaks", "H9_peaksGained","H9_peaksLost"))
+res3 <- makeVennDiagram(Peaks=list(gr_Walsh, gr_H9_1D_EdU_Dox42_Common, gr_H9_1D_EdU_Dox42_Report_Gain,gr_H9_1D_EdU_Dox42_Report_Loss),NameOfPeaks=c("Walsh_sSNVs", "H9_commonPeaks", "H9_peaksGained","H9_peaksLost"))
 dev.off()
 
 ```
@@ -185,12 +484,12 @@ H9_test2 <- data.frame(distanceToNearest(gr_H9_1D_EdU_Dox42_Report_Gain, gr_Wals
 H9_test3 <- data.frame(distanceToNearest(gr_H9_1D_EdU_Dox42_Report_Loss, gr_Walsh))
 
 H9_test1$Class <- "Common"
-#H9_test2$Class <- "Gain"
+H9_test2$Class <- "Gain"
 H9_test3$Class <- "Lost"
 
-H9_mrg <- rbind(H9_test1,H9_test3)
+H9_mrg <- rbind(H9_test1,H9_test2,H9_test3)
 
-ggplot(H9_mrg,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot()  + stat_compare_means()  + theme_classic() # + geom_jitter() 
+ggplot(H9_mrg,aes(y=distance, x=Class, col=Class, fill = Class)) + geom_boxplot() + theme_classic() + scale_y_log10()  + stat_compare_means()   # + geom_jitter() 
 ggplot(H9_mrg, aes(distance, color=Class, fill=Class)) + geom_density(position = "fill") + theme_classic()
 
 ```
@@ -294,3 +593,93 @@ for(i in Repair_NCS$Var1){
   Repair_NCS$Constant_Count[Repair_NCS$Var1 == i] <- length(Walsh_NCS_Complete$Group[Walsh_NCS_Complete$Group == "Constant" & Walsh_NCS_Complete$SYMBOL == i])
 }
 ```
+
+```{r}
+
+#dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+#dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+#dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+#dba_EdU_1Day_None.TOP1_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("None","TOP1"),mask=dba_EdU_1Day_mask, merge="and")
+#dba_EdU_1Day_None.TOP1_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None.TOP1_mask, merge="and")
+#dba_1Day_EdU_None.TOP1_ESCin <- dba(DBAobject,dba_EdU_1Day_None.TOP1_ESCin_mask)
+#dba_1Day_EdU_None.TOP1_ESCin <- dba.count(dba_1Day_EdU_None.TOP1_ESCin)
+
+load("~/RepairedSeq/dba_1Day_EdU_None.TOP1_ESCin.rda")
+dba_TOP1 <- dba.contrast(dba_1Day_EdU_None.TOP1_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_TOP1 <- dba.analyze(dba_TOP1, method=DBA_DESEQ2)
+dba_TOP1_Report2 <- dba.report(dba_TOP1, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_TOP1_Common2 <- dba_TOP1_Report2[dba_TOP1_Report2$FDR > .05]
+dba_TOP1_Common2_df <- data.frame(dba_TOP1_Common2)
+peakAnno_dba_1D_Common2 <- annotatePeak(dba_TOP1_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba.plotVolcano(dba_TOP1)
+
+dba_TOP1_DE_Gain <- dba_TOP1_Report2[dba_TOP1_Report2$FDR <= .05 & dba_TOP1_Report2$Fold <0]
+dba_TOP1_DE_Gain_df <- data.frame(dba_TOP1_DE_Gain)
+peakAnno_dba_TOP1_DE_Gain <- annotatePeak(dba_TOP1_DE_Gain, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba_TOP1_DE_Lost <- dba_TOP1_Report2[dba_TOP1_Report2$FDR <= .05 & dba_TOP1_Report2$Fold >0]
+dba_TOP1_DE_Lost_df <- data.frame(dba_TOP1_DE_Lost)
+peakAnno_dba_TOP1_DE_Lost <- annotatePeak(dba_TOP1_DE_Lost, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+write.table(dba_TOP1_DE_Gain_df, file="dba_TOP1_DE_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+write.table(dba_TOP1_DE_Lost_df, file="dba_TOP1_DE_Lost.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+#dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+#dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+#dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+#dba_EdU_1Day_None.TOP2_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("None","TOP2"),mask=dba_EdU_1Day_mask, merge="and")
+#dba_EdU_1Day_None.TOP2_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None.TOP2_mask, merge="and")
+#dba_1Day_EdU_None.TOP2_ESCin <- dba(DBAobject,dba_EdU_1Day_None.TOP2_ESCin_mask)
+#dba_1Day_EdU_None.TOP2_ESCin <- dba.count(dba_1Day_EdU_None.TOP2_ESCin)
+
+load("~/RepairedSeq/dba_1Day_EdU_None.TOP2_ESCin.rda")
+dba_TOP2 <- dba.contrast(dba_1Day_EdU_None.TOP2_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_TOP2 <- dba.analyze(dba_TOP2, method=DBA_DESEQ2)
+dba_TOP2_Report2 <- dba.report(dba_TOP2, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_TOP2_Common2 <- dba_TOP2_Report2[dba_TOP2_Report2$FDR > .05]
+dba_TOP2_Common2_df <- data.frame(dba_TOP2_Common2)
+peakAnno_dba_1D_Common2 <- annotatePeak(dba_TOP2_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba.plotVolcano(dba_TOP2)
+
+dba_TOP2_DE_Gain <- dba_TOP2_Report2[dba_TOP2_Report2$FDR <= .05 & dba_TOP2_Report2$Fold <0]
+dba_TOP2_DE_Gain_df <- data.frame(dba_TOP2_DE_Gain)
+peakAnno_dba_TOP2_DE_Gain <- annotatePeak(dba_TOP2_DE_Gain, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba_TOP2_DE_Lost <- dba_TOP2_Report2[dba_TOP2_Report2$FDR <= .05 & dba_TOP2_Report2$Fold >0]
+dba_TOP2_DE_Lost_df <- data.frame(dba_TOP2_DE_Lost)
+peakAnno_dba_TOP2_DE_Lost <- annotatePeak(dba_TOP2_DE_Lost, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+write.table(dba_TOP2_DE_Gain_df, file="dba_TOP2_DE_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+write.table(dba_TOP2_DE_Lost_df, file="dba_TOP2_DE_Lost.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+#dba_H1H9_mask <- dba.mask(DBAobject,DBA_ID, c("H1","H9"))
+#dba_EdU_mask <- dba.mask(DBAobject,DBA_CONDITION, "EdU", mask=dba_H1H9_mask, merge="and")
+#dba_EdU_1Day_mask <- dba.mask(DBAobject,DBA_FACTOR,"1Day",mask=dba_EdU_mask, merge="and")
+#dba_EdU_1Day_None.Dox42_mask <- dba.mask(DBAobject,DBA_TREATMENT,c("None","Dox42"),mask=dba_EdU_1Day_mask, merge="and")
+#dba_EdU_1Day_None.Dox42_ESCin_mask <- dba.mask(DBAobject,DBA_TISSUE,"ESC-iN",mask=dba_EdU_1Day_None.Dox42_mask, merge="and")
+#dba_1Day_EdU_None.Dox42_ESCin <- dba(DBAobject,dba_EdU_1Day_None.Dox42_ESCin_mask)
+#dba_1Day_EdU_None.Dox42_ESCin <- dba.count(dba_1Day_EdU_None.Dox42_ESCin)
+
+load("~/RepairedSeq/dba_1Day_EdU_None.Dox42_ESCin.rda")
+
+dba_Dox42 <- dba.contrast(dba_1Day_EdU_None.Dox42_ESCin, categories=DBA_TREATMENT, minMembers = 2)
+dba_Dox42 <- dba.analyze(dba_Dox42, method=DBA_DESEQ2)
+dba_Dox42_Report2 <- dba.report(dba_Dox42, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_Dox42_Common2 <- dba_Dox42_Report2[dba_Dox42_Report2$FDR > .05]
+dba_Dox42_Common2_df <- data.frame(dba_Dox42_Common2)
+peakAnno_dba_1D_Dox42_Common2 <- annotatePeak(dba_Dox42_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba.plotVolcano(dba_Dox42)
+
+dba_Dox42_DE_Gain <- dba_Dox42_Report2[dba_Dox42_Report2$FDR <= .05 & dba_Dox42_Report2$Fold <0]
+dba_Dox42_DE_Gain_df <- data.frame(dba_Dox42_DE_Gain)
+peakAnno_dba_Dox42_DE_Gain <- annotatePeak(dba_Dox42_DE_Gain, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+dba_Dox42_DE_Lost <- dba_Dox42_Report2[dba_Dox42_Report2$FDR <= .05 & dba_Dox42_Report2$Fold >0]
+dba_Dox42_DE_Lost_df <- data.frame(dba_Dox42_DE_Lost)
+peakAnno_dba_Dox42_DE_Lost <- annotatePeak(dba_Dox42_DE_Lost, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+write.table(dba_Dox42_DE_Gain_df, file="dba_Dox42_DE_Gain.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+write.table(dba_Dox42_DE_Lost_df, file="dba_Dox42_DE_Lost.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+ggplot(Walsh_Repair_Data) + geom_smooth(aes(x=reldist,y=fraction,colour=Class)) + theme_classic() + scale_colour_viridis_d(option="C")
+
+```
+

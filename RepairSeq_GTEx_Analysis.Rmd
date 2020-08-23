@@ -1,0 +1,163 @@
+---
+title: "RepairSeq_GTEx_Analysis"
+output: html_document
+---
+
+```{r}
+library("DiffBind")
+library("ChIPpeakAnno")
+library("ChIPseeker")
+library("pqsfinder")
+library("motifRG")
+library("BSgenome.Hsapiens.UCSC.hg38")
+library("EnsDb.Hsapiens.v86")
+library("TxDb.Hsapiens.UCSC.hg38.knownGene")
+library("clusterProfiler")
+library("ReactomePA")
+library("org.Hs.eg.db")
+library("viridis")
+library("ggplot2")
+library("ggExtra")
+library("ggpmisc")
+library("TCGAWorkflow")
+library("tidyr")
+
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+anno86 <- annoGR(EnsDb.Hsapiens.v86)
+
+```
+
+```{r}
+GTEx_Analysis_RNASeq <- read_delim("~/Downloads/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_median_tpm.gct", 
+  "\t", escape_double = FALSE, trim_ws = TRUE, 
+  skip = 2)
+
+GTEx_Analysis_RNASeq <- separate(data = GTEx_Analysis_RNASeq, col = Name, into = c("ENSEMBL", "Version"), sep = "\\.")
+```
+
+```{r}
+load("RNA_tpm.rda")
+
+RNA_tpm_df <- as.data.frame(RNA_tpm)
+RNA_TPM_H1H9 <- RNA_tpm_df[,c(1,4,5,10)]
+RNA_TPM_H1H9$ENSEMBL <- rownames(RNA_TPM_H1H9)
+RNA_TPM_H1H9$avg_RNA_TPM <- rowMeans(RNA_TPM_H1H9[c('H9UNG_A', 'H9UNG_B','H9UNG_A', 'H9UNG_B')], na.rm=FALSE)
+RNA_TPM_H1H9 <- RNA_TPM_H1H9[,-c(1,2,3,4)]
+GTEx_H1H9 <- merge(GTEx_Analysis_RNASeq, RNA_TPM_H1H9, by="ENSEMBL", all=FALSE)
+
+Cor_Test <- cor(GTEx_H1H9[,c(4:57)],GTEx_H1H9[,c(58)])
+my.formula <- y ~ x
+
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Amygdala`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Anterior cingulate cortex (BA24)`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Caudate (basal ganglia)`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Cerebellar Hemisphere`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Cerebellum`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Cortex`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Frontal Cortex (BA9)`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Hippocampus`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Hypothalamus`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Nucleus accumbens (basal ganglia)`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Putamen (basal ganglia)`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Spinal cord (cervical c-1)`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+ggplot(GTEx_H1H9,aes(x=avg_RNA_TPM, y=`Brain - Substantia nigra`)) + geom_point(colour="#037d50",alpha = .2, size=1, shape=16) + theme_classic() + scale_x_log10() + scale_y_log10() + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+
+
+
+
+```
+
+
+
+
+```{r}
+Brain_Frontal_Cortex_BA9.v8.egenes <- read.delim("~/Downloads/GTEx_Analysis_v8_eQTL/Brain_Frontal_Cortex_BA9.v8.egenes.txt")
+
+FrontalCortex_GTEx <- Brain_Frontal_Cortex_BA9.v8.egenes#[Brain_Frontal_Cortex_BA9.v8.egenes$qval<=.05,]
+
+FrontalCortex_GTEx <- separate(data = FrontalCortex_GTEx, col = gene_id, into = c("ENSEMBL", "Version"), sep = "\\.")
+
+FrontalCortex_wH1H9_RNASeq <- merge(FrontalCortex_GTEx, RNA_TPM_H1H9, by="ENSEMBL", all=FALSE)
+
+FrontalCortex_Data <- FrontalCortex_wH1H9_RNASeq[,c(15,16,16,1:14,17:35)]
+
+FrontalCortex_Data$variant_pos.1 <- FrontalCortex_Data$variant_pos.1+1
+colnames(FrontalCortex_Data)[2:3] <- c("start","stop")
+write.table(FrontalCortex_Data, file="FrontalCortex_Data.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+FrontalCortex_gr <- makeGRangesFromDataFrame(FrontalCortex_Data,keep.extra.columns = TRUE)  
+peakAnno_FrontalCortex <- annotatePeak(FrontalCortex_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+plotAnnoPie(peakAnno_FrontalCortex)
+
+
+####bedtools #####
+
+library(DescTools)
+
+GTEx_Data <- read.delim("~/RepairedSeq/FrontalCortex_Data_RepairDistShuffleDist.bed", header=FALSE)
+colnames(GTEx_Data) <- colnames(FrontalCortex_Data)
+GTEx_Data <- GTEx_Data[,-c(37:51,53:67)]
+colnames(GTEx_Data)[37:38] <- c("RepairDistance","ShuffleDistance")
+GTEx_melt <- melt(GTEx_Data, id.vars=1:36,measure.vars=37:38)
+colnames(GTEx_melt)[2:3] <- c("start","stop")
+
+GTEx_gr <- makeGRangesFromDataFrame(GTEx_melt,keep.extra.columns = TRUE)  
+peakAnno_GTEx<- annotatePeak(GTEx_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_GTEx_df <- data.frame(peakAnno_GTEx)
+
+#peakAnno_GTEx_df$annotation[peakAnno_GTEx_df$annotation %like% "%intron 1%"] <- "First intron"
+#peakAnno_GTEx_df$annotation[peakAnno_GTEx_df$annotation %like% "%intron 2%"] <- "Second intron"
+peakAnno_GTEx_df$annotation[peakAnno_GTEx_df$annotation %like% "Intron%"] <- "Intron"
+#peakAnno_GTEx_df$annotation[peakAnno_GTEx_df$annotation %like% "%exon 1%"] <- "First exon"
+#peakAnno_GTEx_df$annotation[peakAnno_GTEx_df$annotation %like% "%exon 2%"] <- "Second exon"
+peakAnno_GTEx_df$annotation[peakAnno_GTEx_df$annotation %like% "Exon%"] <- "Exon"
+
+
+ggplot(peakAnno_GTEx_df,aes(x=variable,y=value, fill=variable)) + geom_boxplot() + facet_wrap(~annotation) + theme_classic() + scale_y_log10() + stat_compare_means() + scale_fill_viridis_d()
+
+ggpaired(peakAnno_GTEx_df, x = "variable", y = "value",color = "variable", line.color = "gray", line.size = 0.4)  + scale_y_log10() +  facet_wrap(~annotation)
+
+ggplot(peakAnno_GTEx_df[peakAnno_GTEx_df$annotation %like% "Promoter%",],aes(x=variable,y=value+1, fill=variable)) + geom_boxplot() + facet_wrap(~annotation) + theme_classic() + scale_y_log10() + stat_compare_means() + scale_fill_viridis_d()
+
+peakAnno_GTEx_df_significant <- peakAnno_GTEx_df[peakAnno_GTEx_df$qval <= .05,]
+
+ggplot(peakAnno_GTEx_df_significant,aes(x=variable,y=value+1, fill=variable)) + geom_boxplot() + facet_wrap(~annotation) + theme_classic() + scale_y_log10() + stat_compare_means() + scale_fill_viridis_d()
+
+#GTEx_Data <- mutate(rowwise(GTEx_Data), mindist = min(V30, V46, V66))
+
+GTEx_promoter <- peakAnno_GTEx_df[peakAnno_GTEx_df$annotation %like% "Promoter%",]
+write.table(GTEx_promoter, file="GTEx_promoter.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+GTEx_Data <- mutate(rowwise(GTEx_Data), mindist = min(ShuffleDistance, RepairDistance))
+
+load("dba_1Day_EdU_None_ESCin.rda")
+###########
+dba_1Dog <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1Dog <- dba.analyze(dba_1Dog, method=DBA_DESEQ2)
+dba_1D_Report2 <- dba.report(dba_1Dog, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_Common2 <- dba_1D_Report2[dba_1D_Report2$FDR > .05]
+dba_1D_Common2_df <- data.frame(dba_1D_Common2)
+peakAnno_dba_1D_Common2 <- annotatePeak(dba_1D_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+pL <- list(Repair=peakAnno_dba_1D_Common2,GTEx=peakAnno_FrontalCortex)
+plotAnnoBar(pL,rotate=TRUE)
+
+
+
+```
+
