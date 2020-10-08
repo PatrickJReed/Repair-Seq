@@ -11,9 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library("DiffBind")
 library("ChIPpeakAnno")
 library("ChIPseeker")
-library("pqsfinder")
 library("motifRG")
-library("BSgenome.Hsapiens.UCSC.hg38")
 library("EnsDb.Hsapiens.v86")
 library("TxDb.Hsapiens.UCSC.hg38.knownGene")
 library("clusterProfiler")
@@ -23,7 +21,6 @@ library("viridis")
 library("ggplot2")
 library("ggExtra")
 library("ggpmisc")
-library("TCGAWorkflow")
 
 
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
@@ -179,7 +176,6 @@ pL <- list(Day1=peakAnno_1Day,Day4=peakAnno_4Day,Day7=peakAnno_7Day)
 
 
 pdf("GenomicDist_1D4D7D_Repair.pdf")
-plotAnnoBar(pL,rotate=TRUE)
 dev.off()
 
 ```
@@ -628,8 +624,6 @@ FoldEnrich_Data$TTX_FR <- FoldEnrich_Data$`TTX Freq`/FoldEnrich_Data$`Shuffle Fr
 pL_Damage_Gain <- list(GQ_Gain=peakAnno_GQ_Gain,PARP_Gain=peakAnno_PARP_Gain,TOP1_Gain=peakAnno_TOP1_Gain, TOP2_Gain=peakAnno_TOP2_Gain, Nu7441_Gain=peakAnno_Nu7441_Gain, ETP_Gain=peakAnno_ETP_Gain, NCS_Gain=peakAnno_NCS_Gain)
 pL_Damage_Lost <- list(GQ_Lost=peakAnno_GQ_Lost,PARP_Lost=peakAnno_PARP_Lost,TOP1_Lost=peakAnno_TOP1_Lost, TOP2_Lost=peakAnno_TOP2_Lost, Nu7441_Lost=peakAnno_Nu7441_Lost, ETP_Lost=peakAnno_ETP_Lost, NCS_Lost=peakAnno_NCS_Lost)
 
-plotAnnoBar(pL_Damage_Gain,rotate=TRUE)
-plotAnnoBar(pL_Damage_Lost,rotate=TRUE)
 dev.off()
 
 
@@ -638,8 +632,8 @@ dev.off()
 
 ```{r}
 #hyperG testing
-ewas_sig <- ewas_hg38_ref[ewas_hg38_ref$pvalueStudent<.01,]
-ewas_sig_gr <- makeGRangesFromDataFrame(ewas_sig)
+ewas_sig <- ewas_hg38_ref[ewas_hg38_ref$V8<.01,]
+ewas_sig_gr <- makeGRangesFromDataFrame(ewas_sig, keep.extra.columns = TRUE)
 ewas_sig_gr_5000 <- resize(ewas_sig_gr,5000)
 
 ##GQ
@@ -676,6 +670,10 @@ makeVennDiagram(Peaks=list(dba_ETP_Common_gr,ewas_sig_gr_5000),NameOfPeaks=c("ET
 dba_NCS_Common <- dba_NCS_All_Sites[dba_NCS_All_Sites$FDR > .1 & abs(dba_NCS_All_Sites$Fold)<2.5,] 
 dba_NCS_Common_gr <- makeGRangesFromDataFrame(dba_NCS_Common)
 makeVennDiagram(Peaks=list(dba_NCS_Common_gr,ewas_sig_gr_5000),NameOfPeaks=c("NCS Common","CpG_sig_5K"))
+   
+(number_significant_cpgs_overlap_gq_common, total_number_sig_cpgs_within_5kb, total_non-sig_cpgs,gq sites)
+
+number of sig age sites within 5kb of CE, total number of sig cpg sites, total non sig cpg age sites, ... 
 
 
 GQ_pvalue <- phyper(7108, 33716,485438-33716, 73953+7108+906, lower.tail = FALSE)
@@ -686,6 +684,35 @@ Nu7441_pvalue <- phyper(4535, 33716,485438-33716, 60301+4535+51, lower.tail = FA
 ETP_pvalue <- phyper(9799, 33716,485438-33716, 125653+9799+192, lower.tail = FALSE)
 NCS_pvalue <- phyper(9690, 33716,485438-33716, 125132+9690+391, lower.tail = FALSE)
 
+ewas_CE_sig <- ewas_CE_closest[ewas_CE_closest$V6<.01,]
+colnames(ewas_CE_sig)[c(1,2,3)] <- c("chr","start","stop")
+ewas_CE_sig_gr <- makeGRangesFromDataFrame(ewas_CE_sig, keep.extra.columns = TRUE)
+ewas_CE_sig_gr_5000 <- resize(ewas_CE_sig_gr,5000)
+
+ggplot(ewas_CE_closest) + geom_point(aes(x=V16+1,y=-log10(V6)), size=.2) + xlab("CpG distance to nearest CE") + ylab("age associated p-value (-log10)") + theme_classic() + geom_vline(xintercept = 5000, color="red") + scale_x_log10()
+
+CE_unique <- unique(CE[,1:3])
+
+CE_gr <- makeGRangesFromDataFrame(CE_unique, keep.extra.columns = TRUE)
+ewas_CE_sig_gr_5000_df <- as.data.frame(ewas_CE_sig_gr_5000)
+ewas_CE_sig_gr_5000_unique <- unique(ewas_CE_sig_gr_5000_df[,1:3])
+ewas_CE_sig_gr_5000_unique_gr <- makeGRangesFromDataFrame(ewas_CE_sig_gr_5000_unique, keep.extra.columns = TRUE)
+
+makeVennDiagram(Peaks=list(ewas_CE_sig_gr_5000_unique_gr,CE_gr),NameOfPeaks=c("ewas sig","CE"))
+makeVennDiagram(Peaks=list(ewas_unique_gr_5000,CE_gr),NameOfPeaks=c("ewas sig","CE"))
+ewas_gr_df <- as.data.frame(ewas_gr)
+ewas_unique <- unique(ewas_gr_df[,1:3])
+ewas_unique_gr <- makeGRangesFromDataFrame(ewas_unique,keep.extra.columns = TRUE)
+ewas_unique_gr_5000 <- resize(ewas_unique_gr,5000)
+GQ_pvalue <- phyper(26749, 33716,485438-33716, 247211, lower.tail = FALSE,log.p = TRUE)
+
+GQ_pvalue
+
+ewas_gr <- makeGRangesFromDataFrame(ewas_hg38_ref, keep.extra.columns = TRUE)
+
+```
+```{r}
+ewas_hg38_ref
 ```
 
 ```{r}
@@ -694,6 +721,7 @@ NCS_pvalue <- phyper(9690, 33716,485438-33716, 125132+9690+391, lower.tail = FAL
 load("dba_KCL_TTX_CTCF.rdata")
 dba_Report_TTX <- dba.report(dba, contrast=8, th=1, bUsePval=TRUE, bCounts = TRUE)
 dba_Report_KCL <- dba.report(dba, contrast=9, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_Report_CTCF <- 
 
 peakAnno_TTX<- annotatePeak(dba_Report_TTX, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 peakAnno_KCL<- annotatePeak(dba_Report_KCL, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
@@ -715,6 +743,9 @@ dba_Report_TTX_df_gr <- makeGRangesFromDataFrame(dba_Report_TTX_df,keep.extra.co
 peakAnno_TTX<- annotatePeak(dba_Report_TTX_df_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 
 TTX_Annotated <- data.frame(peakAnno_TTX)
+
+mygenes <- c("FOS", "NPAS4", "MALAT1", "ERG", "OLIG2", "NR4A1", "HOMER1", "SFI1", "HDAC2", "HNRNPA2B1", "SIRT1", "BDNF", "ARC", "HIC1", "LINC00473", "ZNF331", "ADRA1B")
+
 
 Promoter_Data_TTX <- TTX_Annotated[TTX_Annotated$annotation == "Promoter (<=1kb)" | TTX_Annotated$annotation == "Promoter (1-2kb)" | TTX_Annotated$annotation == "Promoter (2-3kb)", ]
 
@@ -780,7 +811,6 @@ peakAnno_KCL_Gained<- annotatePeak(dba_KCL_Gained_gr, tssRegion=c(-3000, 3000),T
 
 pL_TTX_Lost <- list(TTX_Lost=peakAnno_TTX_Lost)
 
-plotAnnoBar(pL_TTX_Lost,rotate=TRUE)
 
 peakAnno_Repair_Shuffle <- annotatePeak(dba_1D_Common2_Shuffle_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
 
@@ -798,3 +828,412 @@ FoldEnrich_Data$TTX_FR <- FoldEnrich_Data$`TTX Freq`/FoldEnrich_Data$`Shuffle Fr
 
 
 ```
+
+
+```{r}
+
+load("dba_1Day_EdU_None_ESCin.rda")
+###########
+dba_1Dog <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1Dog <- dba.analyze(dba_1Dog, method=DBA_DESEQ2)
+dba_1D_Report2 <- dba.report(dba_1Dog, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_Common2 <- dba_1D_Report2[dba_1D_Report2$FDR > .05]
+
+load("dba_1Day_CTCF_None_ESCin.RData")
+dba_1D_CTCF <- dba.contrast(dba_1Day_CTCF_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D_CTCF <- dba.analyze(dba_1D_CTCF, method=DBA_DESEQ2)
+dba_1D_CTCF_Report2 <- dba.report(dba_1D_CTCF, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_CTCF_Common2 <- dba_1D_CTCF_Report2[dba_1D_CTCF_Report2$FDR > .05]
+dba_1D_CTCF_Common2_df <- data.frame(dba_1D_CTCF_Common2)
+write.table(dba_1D_CTCF_Common2_df, file="dba_1D_CTCF_Common2", sep="\t", col.names = TRUE, row.names = FALSE)
+
+peakAnno_dba_1D_CTCF_Common2<- annotatePeak(dba_1D_CTCF_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+load("dba_KCL_TTX_CTCF.rdata")
+dba_Report_TTX <- dba.report(dba, contrast=8, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_TTX_Gained <- dba_Report_TTX[dba_Report_TTX$FDR <= .1 & dba_Report_TTX$Fold <0,]
+dba_TTX_Gained_df <- data.frame(dba_TTX_Gained)
+dba_TTX_Lost <- dba_Report_TTX[dba_Report_TTX$FDR <= .1 & dba_Report_TTX$Fold >0,]
+dba_TTX_Lost_df <- data.frame(dba_TTX_Lost)
+write.table(dba_TTX_Lost_df, file="dba_TTX_Lost.bed", sep="\t")
+
+dba_1D_TTX_Common2 <- dba_Report_TTX[dba_Report_TTX$FDR > .05]
+dba_Report_TTX_df <- data.frame(dba_1D_TTX_Common2)
+peakAnno_dba_1D_TTX_Common2<- annotatePeak(dba_1D_TTX_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+dba_Report_KCL <- dba.report(dba, contrast=9, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_KCL_Gained <- dba_Report_KCL[dba_Report_KCL$FDR <= .1 & dba_Report_KCL$Fold <0,]
+dba_KCL_Lost <- dba_Report_KCL[dba_Report_KCL$FDR <= .1 & dba_Report_KCL$Fold >0,]
+dba_KCL_Lost_df <- data.frame(dba_KCL_Lost)
+write.table(dba_KCL_Lost_df, file="dba_KCL_Lost.bed", sep="\t")
+dba_1D_KCL_Common2 <- dba_Report_KCL[dba_Report_KCL$FDR > .05]
+dba_1D_KCL_Common2_df <- data.frame(dba_1D_KCL_Common2)
+peakAnno_dba_1D_KCL_Common2<- annotatePeak(dba_1D_KCL_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+makeVennDiagram(Peaks=list(dba_1D_CTCF_Common2, dba_1D_TTX_Common2,dba_1D_KCL_Common2,dba_1D_Common2),NameOfPeaks=c("CTCF", "TTX","KCL","EdU"))
+
+
+library(ComplexHeatmap)
+library(UpSetR)
+
+List <- list(CTCF=dba_1D_CTCF_Common2,EdU=dba_1D_Common2,TTX_Gained=dba_TTX_Gained,TTX_Lost=dba_TTX_Lost_SortCorrect_gr, KCL_Lost=dba_KCL_Lost_SortCorrect_gr, KCL_Gained=dba_KCL_Gained)
+
+m3 = make_comb_mat(List, mode="distinct",value_fun = length)
+
+UpSet(m3,comb_order = order(comb_size(m3),decreasing = TRUE))
+
+```
+
+```{r}
+load("dba_Damage_New.rdata")
+dba_Report_GQ <- dba.report(dba, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+
+dba_GQ_All_Sites <- data.frame(dba_Report_GQ)
+
+dba_GQ_Gained <- dba_GQ_All_Sites[dba_GQ_All_Sites$FDR <= .1 & dba_GQ_All_Sites$Fold <0,]
+dba_GQ_Lost <- dba_GQ_All_Sites[dba_GQ_All_Sites$FDR <= .1 & dba_GQ_All_Sites$Fold >0,]
+dba_GQ_Common <- dba_GQ_All_Sites[dba_GQ_All_Sites$FDR > .1,]
+dba_GQ_Gained_gr <- makeGRangesFromDataFrame(dba_GQ_Gained,keep.extra.columns = TRUE)
+dba_GQ_Lost_gr <- makeGRangesFromDataFrame(dba_GQ_Lost,keep.extra.columns = TRUE)
+dba_GQ_Common_gr <- makeGRangesFromDataFrame(dba_GQ_Common,keep.extra.columns = TRUE)
+
+write.table(dba_GQ_Gained, file="dba_GQ_Gained.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+write.table(dba_GQ_Lost, file="dba_GQ_Lost.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+write.table(dba_GQ_Common, file="dba_GQ_Common.bed", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+peakAnno_dba_GQ_Gained_gr<- annotatePeak(dba_GQ_Gained_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_GQ_Lost_gr<- annotatePeak(dba_GQ_Lost_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_GQ_Common_gr<- annotatePeak(dba_GQ_Common_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+
+load("dba_1Day_ATAC_None_ESCin.rda")
+dba_1D_ATAC <- dba.contrast(dba_1Day_ATAC_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D_ATAC <- dba.analyze(dba_1D_ATAC, method=DBA_DESEQ2)
+dba_1D_ATAC_Report2 <- dba.report(dba_1D_ATAC, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_ATAC_Common2 <- dba_1D_ATAC_Report2[dba_1D_ATAC_Report2$FDR > .05]
+dba_1D_ATAC_Common2_df <- data.frame(dba_1D_ATAC_Common2)
+peakAnno_dba_1D_ATAC_Common2<- annotatePeak(dba_1D_ATAC_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+hg38_OQ <- read.delim("Hg38_all_w15_th-1.hits.max.K.PDS.w50.intersect.bed", header=FALSE)
+hg38_OQ_ATAC <- read.delim("Hg38_G4Seq.intersect.ATAC.bed", header=FALSE)
+
+hg38_OQ_shuffle <- read.delim("Hg38_all_w15_th-1.hits.max.K.PDS.w50.intersect.shuffle.bed", header=FALSE)
+
+colnames(hg38_OQ)[1:4] <- c("chr","start","end","ID")
+colnames(hg38_OQ_ATAC)[1:4] <- c("chr","start","end","ID")
+colnames(hg38_OQ_shuffle)[1:4] <- c("chr","start","end","ID")
+
+hg38_OQ_unique <- unique(hg38_OQ[,1:4])
+hg38_OQ_ATAC_unique <- unique(hg38_OQ_ATAC[,1:4])
+hg38_OQ_shuffle_unique <- unique(hg38_OQ_shuffle[,1:4])
+
+hg38_OQ_gr <- makeGRangesFromDataFrame(hg38_OQ_unique,keep.extra.columns = FALSE)
+hg38_OQ_ATAC_gr <- makeGRangesFromDataFrame(hg38_OQ_ATAC_unique,keep.extra.columns = FALSE)
+hg38_OQ_shuffle_gr <- makeGRangesFromDataFrame(hg38_OQ_shuffle_unique,keep.extra.columns = FALSE)
+
+
+peakAnno_hg38_OQ_gr<- annotatePeak(hg38_OQ_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_hg38_OQ_ATAC_gr<- annotatePeak(hg38_OQ_ATAC_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_hg38_OQ_shuffle_gr<- annotatePeak(hg38_OQ_shuffle_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+
+dba_1D_Common_Shuffle <- read.delim("~/RepairedSeq/dba_1D_Common2_NEW.shuffle.sort.bed", header=FALSE)
+colnames(dba_1D_Common_Shuffle)[1:4] <- c("chr","start","end","ID")
+dba_1D_Common_Shuffle_gr <- makeGRangesFromDataFrame(dba_1D_Common_Shuffle,keep.extra.columns = FALSE)
+
+
+makeVennDiagram(Peaks=list(dba_GQ_Common_gr,hg38_OQ_ATAC_gr), NameOfPeaks=c("PDS_Common","OQ_ATAC"))
+
+makeVennDiagram(Peaks=list(dba_GQ_Gained_gr,hg38_OQ_ATAC_gr), NameOfPeaks=c("PDS_Gained","OQ_ATAC"))
+
+makeVennDiagram(Peaks=list(dba_GQ_Lost_gr,hg38_OQ_ATAC_gr), NameOfPeaks=c("PDS_Lost","OQ_ATAC"))
+
+makeVennDiagram(Peaks=list(dba_1D_Common_Shuffle_gr,hg38_OQ_ATAC_gr), NameOfPeaks=c("Shuffle","OQ_ATAC"))
+
+makeVennDiagram(Peaks=list(dba_TTX_Lost,hg38_OQ_ATAC_gr), NameOfPeaks=c("TTX_Lost","OQ_ATAC"))
+
+
+
+
+
+makeVennDiagram(Peaks=list(dba_GQ_Common_gr,hg38_OQ_gr), NameOfPeaks=c("PDS_Common","OQ"))
+
+makeVennDiagram(Peaks=list(dba_GQ_Gained_gr,hg38_OQ_gr), NameOfPeaks=c("PDS_Gained","OQ"))
+
+makeVennDiagram(Peaks=list(dba_GQ_Lost_gr,hg38_OQ_gr), NameOfPeaks=c("PDS_Lost","OQ"))
+
+makeVennDiagram(Peaks=list(dba_1D_Common_Shuffle_gr,hg38_OQ_gr), NameOfPeaks=c("Shuffle","OQ"))
+
+makeVennDiagram(Peaks=list(dba_TTX_Lost,hg38_OQ_gr), NameOfPeaks=c("TTX_Lost","OQ"))
+
+
+
+PDS_Common_OQ_Percent = 13925/(68061 + 13925)
+
+PDS_Gained_OQ_Percent = 246 / (660+246)
+
+PDS_Lost_OQ_Percent = 6814 / (6814+49092)
+
+Repair_Shuffle_OQ_Percent = 6654 / (6654 + 54521)
+
+Repair_TTX_lost_OQ_Percent = 12011 / (12011+56129)
+
+PDS_Common_OQ_Percent*100
+PDS_Gained_OQ_Percent*100
+PDS_Lost_OQ_Percent*100
+Repair_Shuffle_OQ_Percent*100
+Repair_TTX_lost_OQ_Percent*100
+
+percent_overlaps <- c(PDS_Common_OQ_Percent*100,PDS_Gained_OQ_Percent*100,PDS_Lost_OQ_Percent*100,Repair_Shuffle_OQ_Percent*100)
+percent_overlap_names <- c("PDS_Common_OQ_Percent","PDS_Gained_OQ_Percent","PDS_Lost_OQ_Percent","Repair_Shuffle_OQ_Percent")
+
+
+#####PDS gained, lost and common, intersect with G4 and G4 shuffle
+
+dba_GQ_Gained_G4overlap <- read.delim("dba_GQ_Gained_G4overlap.bed", header=FALSE)
+colnames(dba_GQ_Gained_G4overlap)[1:4] <- c("chr","start","end","ID")
+dba_GQ_Gained_G4overlap_gr <- makeGRangesFromDataFrame(dba_GQ_Gained_G4overlap,keep.extra.columns = FALSE)
+
+dba_GQ_Lost_G4overlap <- read.delim("dba_GQ_Lost_G4overlap.bed", header=FALSE)
+colnames(dba_GQ_Lost_G4overlap)[1:4] <- c("chr","start","end","ID")
+dba_GQ_Lost_G4overlap_gr <- makeGRangesFromDataFrame(dba_GQ_Lost_G4overlap,keep.extra.columns = FALSE)
+
+dba_GQ_Common_G4overlap <- read.delim("dba_GQ_Common_G4overlap.bed", header=FALSE)
+colnames(dba_GQ_Common_G4overlap)[1:4] <- c("chr","start","end","ID")
+dba_GQ_Common_G4overlap_gr <- makeGRangesFromDataFrame(dba_GQ_Common_G4overlap,keep.extra.columns = FALSE)
+
+dba_GQ_Gained_G4_Shuffle_overlap <- read.delim("dba_GQ_Gained_G4_Shuffle_overlap.bed", header=FALSE)
+colnames(dba_GQ_Gained_G4_Shuffle_overlap)[1:4] <- c("chr","start","end","ID")
+dba_GQ_Gained_G4_Shuffle_overlap_gr <- makeGRangesFromDataFrame(dba_GQ_Gained_G4_Shuffle_overlap,keep.extra.columns = FALSE)
+
+dba_GQ_Lost_G4_Shuffle_overlap <- read.delim("dba_GQ_Lost_G4_Shuffle_overlap.bed", header=FALSE)
+colnames(dba_GQ_Lost_G4_Shuffle_overlap)[1:4] <- c("chr","start","end","ID")
+dba_GQ_Lost_G4_Shuffle_overlap_gr <- makeGRangesFromDataFrame(dba_GQ_Lost_G4_Shuffle_overlap,keep.extra.columns = FALSE)
+
+dba_GQ_Common_G4_Shuffle_overlap <- read.delim("dba_GQ_Common_G4_Shuffle_overlap.bed", header=FALSE)
+colnames(dba_GQ_Common_G4_Shuffle_overlap)[1:4] <- c("chr","start","end","ID")
+dba_GQ_Common_G4_Shuffle_overlap_gr <- makeGRangesFromDataFrame(dba_GQ_Common_G4_Shuffle_overlap,keep.extra.columns = FALSE)
+
+peakAnno_dba_GQ_Gained_G4overlap <- annotatePeak(dba_GQ_Gained_G4overlap_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_GQ_Lost_G4overlap <- annotatePeak(dba_GQ_Lost_G4overlap_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_GQ_Common_G4overlap <- annotatePeak(dba_GQ_Common_G4overlap_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_GQ_Gained_G4_Shuffle_overlap <- annotatePeak(dba_GQ_Gained_G4_Shuffle_overlap_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_GQ_Lost_G4_Shuffle_overlap <- annotatePeak(dba_GQ_Lost_G4_Shuffle_overlap_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_GQ_Common_G4_Shuffle_overlap <- annotatePeak(dba_GQ_Common_G4_Shuffle_overlap_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+AnnoStats_GQ_Gained_G4overlap <- peakAnno_dba_GQ_Gained_G4overlap@annoStat
+AnnoStats_GQ_Lost_G4overlap <- peakAnno_dba_1D_GroSeq_Common2@annoStat
+AnnoStats_GQ_Common_G4overlap <- peakAnno_dba_GQ_Common_G4overlap@annoStat
+AnnoStats_GQ_Gained_G4_Shuffle_overlap <- peakAnno_dba_GQ_Gained_G4_Shuffle_overlap@annoStat
+AnnoStats_dba_GQ_Lost_G4_Shuffle_overlap <- peakAnno_dba_GQ_Lost_G4_Shuffle_overlap@annoStat
+AnnoStats_GQ_Common_G4_Shuffle_overlap <- peakAnno_dba_GQ_Common_G4_Shuffle_overlap@annoStat
+
+
+colnames(AnnoStats_GQ_Gained_G4overlap)[2] <- c("GQ_Gained_G4overlap Freq")
+colnames(AnnoStats_GQ_Lost_G4overlap)[2] <- c("GQ_Lost_G4overlap Freq")
+colnames(AnnoStats_GQ_Common_G4overlap)[2] <- c("GQ_Common_G4overlap Freq")
+colnames(AnnoStats_GQ_Gained_G4_Shuffle_overlap)[2] <- c("GQ_Gained_G4_Shuffle_overlap Freq")
+colnames(AnnoStats_dba_GQ_Lost_G4_Shuffle_overlap)[2] <- c("GQ_Lost_G4_Shuffle_overlap Freq")
+colnames(AnnoStats_GQ_Common_G4_Shuffle_overlap)[2] <- c("GQ_Common_G4_Shuffle_overlap Freq")
+
+FoldEnrich_Data_GQ <- cbind(AnnoStats_GQ_Gained_G4overlap,AnnoStats_GQ_Lost_G4overlap,AnnoStats_GQ_Common_G4overlap,AnnoStats_GQ_Gained_G4_Shuffle_overlap_correct,AnnoStats_dba_GQ_Lost_G4_Shuffle_overlap,AnnoStats_GQ_Common_G4_Shuffle_overlap)
+
+FoldEnrich_Data_GQ$`GQ_Gained_G4_Shuffle_overlap Freq` <- as.numeric(FoldEnrich_Data_GQ$`GQ_Gained_G4_Shuffle_overlap Freq`)
+
+FoldEnrich_Data_GQ$GQ_Gained_G4_Fold <- FoldEnrich_Data_GQ$`GQ_Gained_G4overlap Freq`/ FoldEnrich_Data_GQ$`GQ_Gained_G4_Shuffle_overlap Freq`
+
+FoldEnrich_Data_GQ$GQ_Lost_G4_Fold <- FoldEnrich_Data_GQ$`GQ_Lost_G4overlap Freq`/ FoldEnrich_Data_GQ$`GQ_Lost_G4_Shuffle_overlap Freq`
+
+FoldEnrich_Data_GQ$GQ_Common_G4_Fold <- FoldEnrich_Data_GQ$`GQ_Common_G4overlap Freq`/ FoldEnrich_Data_GQ$`GQ_Common_G4_Shuffle_overlap Freq`
+
+FoldData_GQ <- FoldEnrich_Data_GQ[,c(1,13:15)]
+
+GQ_Fold <- melt(FoldData_GQ, id=c("Feature"))
+
+ggplot(GQ_Fold) + geom_col(aes(x=Feature,y=value, color=variable, fill=variable), position = "dodge") + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + geom_hline(yintercept = 1)
+
+```
+
+
+
+
+```{r}
+dba_H1H9_mask <- dba.mask(dbaObjectV5,DBA_ID, c("H1","H9"))
+dba_EdU_FK2_mask <- dba.mask(dbaObjectV5,DBA_CONDITION, c("FK2"), mask=dba_H1H9_mask, merge="and")
+dba_EdU_FK2_1Day_mask <- dba.mask(dbaObjectV5,DBA_FACTOR,c("1Day"),mask=dba_EdU_FK2_mask, merge="and")
+dba_EdU_FK2_1Day_None_mask <- dba.mask(dbaObjectV5,DBA_TREATMENT,c("None"),mask=dba_EdU_FK2_1Day_mask, merge="and")
+dba_EdU_FK2_1Day_None_ESCin_mask <- dba.mask(dbaObjectV5,DBA_TISSUE,"ESC-iN",mask=dba_EdU_FK2_1Day_None_mask, merge="and")
+dba_EdU_FK2_1Day_None_ESCin <- dba(dbaObjectV5,dba_EdU_FK2_1Day_None_ESCin_mask)
+dba_EdU_FK2_1Day_None_ESCin <- dba.count(dba_EdU_FK2_1Day_None_ESCin)
+
+dba_H1H9_mask <- dba.mask(dbaObjectV5,DBA_ID, c("H1","H9"))
+dba_EdU_SFPQ_mask <- dba.mask(dbaObjectV5,DBA_CONDITION, c("SFPQ"), mask=dba_H1H9_mask, merge="and")
+dba_EdU_SFPQ_1Day_mask <- dba.mask(dbaObjectV5,DBA_FACTOR,c("1Day"),mask=dba_EdU_SFPQ_mask, merge="and")
+dba_EdU_SFPQ_1Day_None_mask <- dba.mask(dbaObjectV5,DBA_TREATMENT,c("None"),mask=dba_EdU_SFPQ_1Day_mask, merge="and")
+dba_EdU_SFPQ_1Day_None_ESCin_mask <- dba.mask(dbaObjectV5,DBA_TISSUE,"ESC-iN",mask=dba_EdU_SFPQ_1Day_None_mask, merge="and")
+dba_EdU_SFPQ_1Day_None_ESCin <- dba(dbaObjectV5,dba_EdU_SFPQ_1Day_None_ESCin_mask)
+dba_EdU_SFPQ_1Day_None_ESCin <- dba.count(dba_EdU_SFPQ_1Day_None_ESCin)
+save(dba_EdU_SFPQ_1Day_None_ESCin, file="dba_EdU_SFPQ_1Day_None_ESCin.rda")
+
+dba_H1H9_mask <- dba.mask(dbaObjectV5,DBA_ID, c("H1","H9"))
+dba_EdU_H2AZ_mask <- dba.mask(dbaObjectV5,DBA_CONDITION, c("H2AZ"), mask=dba_H1H9_mask, merge="and")
+dba_EdU_H2AZ_1Day_mask <- dba.mask(dbaObjectV5,DBA_FACTOR,c("1Day"),mask=dba_EdU_H2AZ_mask, merge="and")
+dba_EdU_H2AZ_1Day_None_mask <- dba.mask(dbaObjectV5,DBA_TREATMENT,c("None"),mask=dba_EdU_H2AZ_1Day_mask, merge="and")
+dba_EdU_H2AZ_1Day_None_ESCin_mask <- dba.mask(dbaObjectV5,DBA_TISSUE,"ESC-iN",mask=dba_EdU_H2AZ_1Day_None_mask, merge="and")
+dba_EdU_H2AZ_1Day_None_ESCin <- dba(dbaObjectV5,dba_EdU_H2AZ_1Day_None_ESCin_mask)
+dba_EdU_H2AZ_1Day_None_ESCin <- dba.count(dba_EdU_H2AZ_1Day_None_ESCin)
+save(dba_EdU_H2AZ_1Day_None_ESCin, file="dba_EdU_H2AZ_1Day_None_ESCin.rda")
+
+dba_H1H9_mask <- dba.mask(dbaObjectV6,DBA_ID, c("H1","H9"))
+dba_EdU_GroSeq_mask <- dba.mask(dbaObjectV6,DBA_CONDITION, c("GroSeq"), mask=dba_H1H9_mask, merge="and")
+dba_EdU_GroSeq_1Day_mask <- dba.mask(dbaObjectV6,DBA_FACTOR,c("1Day"),mask=dba_EdU_GroSeq_mask, merge="and")
+dba_EdU_GroSeq_1Day_None_mask <- dba.mask(dbaObjectV6,DBA_TREATMENT,c("None"),mask=dba_EdU_GroSeq_1Day_mask, merge="and")
+dba_EdU_GroSeq_1Day_None_ESCin_mask <- dba.mask(dbaObjectV6,DBA_TISSUE,"ESC-iN",mask=dba_EdU_GroSeq_1Day_None_mask, merge="and")
+dba_EdU_GroSeq_1Day_None_ESCin <- dba(dbaObjectV6,dba_EdU_GroSeq_1Day_None_ESCin_mask)
+dba_EdU_GroSeq_1Day_None_ESCin <- dba.count(dba_EdU_GroSeq_1Day_None_ESCin)
+save(dba_EdU_GroSeq_1Day_None_ESCin, file="dba_EdU_GroSeq_1Day_None_ESCin.rda")
+
+
+```
+
+
+```{r}
+load("dba_1Day_EdU_None_ESCin.rda")
+###########
+dba_1Dog <- dba.contrast(dba_1Day_EdU_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1Dog <- dba.analyze(dba_1Dog, method=DBA_DESEQ2)
+dba_1D_Report2 <- dba.report(dba_1Dog, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_Common2 <- dba_1D_Report2[abs(dba_1D_Report2$Fold) < 1 & dba_1D_Report2$`p-value` > .5]
+
+load("dba_EdU_H2AZ_1Day_None_ESCin.rda")
+dba_1D_H2AZ <- dba.contrast(dba_EdU_H2AZ_1Day_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D_H2AZ <- dba.analyze(dba_1D_H2AZ, method=DBA_DESEQ2)
+dba_1D_H2AZ_Report2 <- dba.report(dba_1D_H2AZ, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_H2AZ_Common2 <- dba_1D_H2AZ_Report2[dba_1D_H2AZ_Report2$FDR > .05]
+dba_1D_H2AZ_Common2_df <- data.frame(dba_1D_H2AZ_Common2)
+write.table(dba_1D_H2AZ_Common2_df, file="dba_1D_H2AZ_Common2", sep="\t", col.names = TRUE, row.names = FALSE)
+
+load("dba_EdU_GroSeq_1Day_None_ESCin.rda")
+dba_1D_GroSeq <- dba.contrast(dba_EdU_GroSeq_1Day_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D_GroSeq <- dba.analyze(dba_1D_GroSeq, method=DBA_DESEQ2)
+dba_1D_GroSeq_Report2 <- dba.report(dba_1D_GroSeq, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_GroSeq_Common2 <- dba_1D_GroSeq_Report2[dba_1D_GroSeq_Report2$FDR > .05]
+dba_1D_GroSeq_Common2_df <- data.frame(dba_1D_GroSeq_Common2)
+write.table(dba_1D_GroSeq_Common2_df, file="dba_1D_GroSeq_Common2", sep="\t", col.names = FALSE, row.names = FALSE)
+
+
+dba_Shuffle <- read.delim("dba_1D_Common2_NEW.shuffle.sort.bed", header=FALSE)
+colnames(dba_Shuffle)[1:4] <- c("chr","start","end","ID")
+dba_Shuffle_gr <- makeGRangesFromDataFrame(dba_Shuffle,keep.extra.columns = FALSE)
+
+dba_Repair_GroSeq <- read.delim("dba_1D_Repair_GroSeq_Intersect.bed", header=FALSE)
+colnames(dba_Repair_GroSeq)[1:4] <- c("chr","start","end","ID")
+dba_Repair_GroSeq_gr <- makeGRangesFromDataFrame(dba_Repair_GroSeq,keep.extra.columns = FALSE)
+
+dba_Repair_H2AZ <- read.delim("dba_1D_Repair_H2AZ_Intersect.bed", header=FALSE)
+colnames(dba_Repair_H2AZ)[1:4] <- c("chr","start","end","ID")
+dba_Repair_H2AZ_gr <- makeGRangesFromDataFrame(dba_Repair_H2AZ,keep.extra.columns = FALSE)
+
+
+makeVennDiagram(Peaks=list(dba_1D_Common2, dba_1D_H2AZ_Common2,dba_Shuffle_gr),NameOfPeaks=c("Repair", "H2AZ","Random"))
+makeVennDiagram(Peaks=list(dba_1D_Common2, dba_1D_GroSeq_Common2,dba_Shuffle_gr),NameOfPeaks=c("Repair", "GroSeq", "Random"))
+
+peakAnno_dba_1D_Common2<- annotatePeak(dba_1D_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_1D_H2AZ_Common2<- annotatePeak(dba_1D_H2AZ_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_1D_GroSeq_Common2<- annotatePeak(dba_1D_GroSeq_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_Shuffle_gr<- annotatePeak(dba_Shuffle_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_Repair_GroSeq_gr <- annotatePeak(dba_Repair_GroSeq_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+peakAnno_dba_Repair_H2AZ_gr<- annotatePeak(dba_Repair_H2AZ_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+pL1 <- list(Repair=peakAnno_dba_1D_Common2,H2AZ=peakAnno_dba_1D_H2AZ_Common2,Repair_H2AZ=peakAnno_dba_Repair_H2AZ_gr,Shuffle=peakAnno_dba_Shuffle_gr)
+
+pL2 <- list(Repair=peakAnno_dba_1D_Common2,GroSeq=peakAnno_dba_1D_GroSeq_Common2,Repair_GroSeq=peakAnno_dba_Repair_GroSeq_gr,Shuffle=peakAnno_dba_Shuffle_gr)
+
+dba_Random <- read.delim("~/RepairedSeq/hg38_random_1.bed", header=FALSE)
+colnames(dba_Random)[1:3] <- c("chr","start","end")
+dba_Random_gr <- makeGRangesFromDataFrame(dba_Random,keep.extra.columns = FALSE)
+peakAnno_dba_Random <- annotatePeak(dba_Random_gr, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+
+AnnoStats_H2AZ <- peakAnno_dba_1D_H2AZ_Common2@annoStat
+AnnoStats_GroSeq <- peakAnno_dba_1D_GroSeq_Common2@annoStat
+AnnoStats_Repair <- peakAnno_dba_1D_Common2@annoStat
+AnnoStats_Shuffle <- peakAnno_dba_Shuffle_gr@annoStat
+AnnoStats_Repair_GroSeq <- peakAnno_dba_Repair_GroSeq_gr@annoStat
+AnnoStats_Repair_H2AZ <- peakAnno_dba_Repair_H2AZ_gr@annoStat
+AnnoStats_Random <- peakAnno_dba_Random@annoStat
+
+
+colnames(AnnoStats_H2AZ)[2] <- c("H2AZ Freq")
+colnames(AnnoStats_GroSeq)[2] <- c("GroSeq Freq")
+colnames(AnnoStats_Repair)[2] <- c("Repair Freq")
+colnames(AnnoStats_Shuffle)[2] <- c("Shuffle Freq")
+colnames(AnnoStats_Repair_GroSeq)[2] <- c("Repair_GroSeq Freq")
+colnames(AnnoStats_Repair_H2AZ)[2] <- c("Repair_H2AZ Freq")
+colnames(AnnoStats_Random)[2] <- c("Random Freq")
+
+FoldEnrich_Data_Repair <- cbind(AnnoStats_Repair,AnnoStats_Random)
+FoldEnrich_Data_Repair$Repair_Fold <- FoldEnrich_Data_Repair$`Repair Freq`/ FoldEnrich_Data_Repair$`Random Freq`
+FoldData_Repair <- FoldEnrich_Data_Repair[,c(1,5)]
+
+ggplot(FoldData_Repair) + geom_col(aes(x=Feature,y=Repair_Fold), position = "dodge") + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + geom_hline(yintercept = 1)
+
+
+
+FoldEnrich_Data_GroSeq <- cbind(AnnoStats_GroSeq,AnnoStats_Shuffle,AnnoStats_Repair_GroSeq)
+FoldEnrich_Data_H2AZ <- cbind(AnnoStats_H2AZ,AnnoStats_Shuffle,AnnoStats_Repair_H2AZ)
+
+FoldEnrich_Data_GroSeq$GroSeq_Fold <- FoldEnrich_Data_GroSeq$`GroSeq Freq`/ FoldEnrich_Data_GroSeq$`Shuffle Freq`
+FoldEnrich_Data_GroSeq$Repair_GroSeq_Fold <- FoldEnrich_Data_GroSeq$`Repair_GroSeq Freq`/ FoldEnrich_Data_GroSeq$`Shuffle Freq`
+
+FoldEnrich_Data_H2AZ$H2AZ_Fold <- FoldEnrich_Data_H2AZ$`H2AZ Freq`/ FoldEnrich_Data_H2AZ$`Shuffle Freq`
+FoldEnrich_Data_H2AZ$Repair_H2AZ_Fold <- FoldEnrich_Data_H2AZ$`Repair_H2AZ Freq`/ FoldEnrich_Data_H2AZ$`Shuffle Freq`
+
+FoldData_GroSeq <- FoldEnrich_Data_GroSeq[,c(1,7:8)]
+FoldData_H2AZ <- FoldEnrich_Data_H2AZ[,c(1,7:8)]
+
+GroSeq_Fold <- melt(FoldData_GroSeq, id=c("Feature"))
+H2AZ_Fold <- melt(FoldData_H2AZ, id=c("Feature"))
+
+ggplot(GroSeq_Fold) + geom_col(aes(x=Feature,y=value, color=variable, fill=variable), position = "dodge") + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + geom_hline(yintercept = 1)
+ggplot(H2AZ_Fold) + geom_col(aes(x=Feature,y=value, color=variable, fill=variable), position = "dodge") + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + geom_hline(yintercept = 1)
+
+load("dba_1Day_ATAC_None_ESCin.rda")
+dba_1D_ATAC <- dba.contrast(dba_1Day_ATAC_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D_ATAC <- dba.analyze(dba_1D_ATAC, method=DBA_DESEQ2)
+dba_1D_ATAC_Report2 <- dba.report(dba_1D_ATAC, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_ATAC_Common2 <- dba_1D_ATAC_Report2[dba_1D_ATAC_Report2$FDR > .05]
+dba_1D_ATAC_Common2_df <- data.frame(dba_1D_ATAC_Common2)
+peakAnno_dba_1D_ATAC_Common2<- annotatePeak(dba_1D_ATAC_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+load("dba_1Day_H3K27Ac_None_ESCin.rda")
+dba_1D_H3K27Ac <- dba.contrast(dba_1Day_H3K27Ac_None_ESCin, categories=DBA_ID, minMembers = 2)
+dba_1D_H3K27Ac <- dba.analyze(dba_1D_H3K27Ac, method=DBA_DESEQ2)
+dba_1D_H3K27Ac_Report2 <- dba.report(dba_1D_H3K27Ac, contrast=1, th=1, bUsePval=TRUE, bCounts = TRUE)
+dba_1D_H3K27Ac_Common2 <- dba_1D_H3K27Ac_Report2[dba_1D_H3K27Ac_Report2$FDR > .05]
+dba_1D_H3K27Ac_Common2_df <- data.frame(dba_1D_H3K27Ac_Common2)
+peakAnno_dba_1D_H3K27Ac_Common2<- annotatePeak(dba_1D_H3K27Ac_Common2, tssRegion=c(-3000, 3000),TxDb=txdb, annoDb="org.Hs.eg.db")
+
+Repair_GroSeq_df <- data.frame(dba_Repair_GroSeq_gr)
+
+
+ATAC_unique <- unique(dba_1D_ATAC_Common2_df[,1:4])
+H3K27Ac_Unique <- unique(dba_1D_H3K27Ac_Common2_df[,1:4])
+Repair_GroSeq_Unique <- unique(Repair_GroSeq_df[,1:4])
+
+
+colnames(ATAC_unique)[1:4] <- c("chr","start","end","ID")
+colnames(H3K27Ac_Unique)[1:4] <- c("chr","start","end","ID")
+colnames(Repair_GroSeq_Unique)[1:4] <- c("chr","start","end","ID")
+
+dba_ATAC_Unque_gr <- makeGRangesFromDataFrame(ATAC_unique,keep.extra.columns = FALSE)
+dba_H3K27Ac_Unique_gr <- makeGRangesFromDataFrame(H3K27Ac_Unique,keep.extra.columns = FALSE)
+dba_RepairGroSeq_Unique_gr <- makeGRangesFromDataFrame(Repair_GroSeq_Unique,keep.extra.columns = FALSE)
+
+
+
+makeVennDiagram(Peaks=list(dba_RepairGroSeq_Unique_gr, dba_ATAC_Unque_gr,dba_H3K27Ac_Unique_gr),NameOfPeaks=c("Repair_GroSeq_Overlap", "ATAC","H3K27Ac"))
+
+
+````

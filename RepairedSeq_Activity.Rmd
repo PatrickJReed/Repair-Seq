@@ -17,7 +17,7 @@ library("org.Hs.eg.db")
 library("viridis")
 library("ggplot2")
 library("ggExtra")
-library("ggpmisc")
+library("ggmisc")
 
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 anno86 <- annoGR(EnsDb.Hsapiens.v86)
@@ -164,14 +164,92 @@ rpkm_promoters <- subset(peakanno_rpkm_df, peakanno_rpkm_df$annotation %in% c('P
 View(rpkm_promoters)
 rpkm_activity_subset <- subset(rpkm_promoters, rpkm_promoters$SYMBOL %in% mygenes)
 
-test <- rpkm_activity_subset[,c(6:17,28)]
+rpkm_test <- rpkm_promoters
+
+rpkm_test$color <- "Other"
+rpkm_test$color[rpkm_promoters$SYMBOL %in% mygenes] <- "MyGenes"
 
 
 library(dplyr)
 
-Activity_RPKMs <- test %>%
+
+test2 <- rpkm_test[,c(6:17,28)]
+
+Promoter_RPKMs <- test2 %>%
 group_by(SYMBOL) %>%
 summarise_all(sum)
+
+Promoter_RPKMs$color <- "Other"
+Promoter_RPKMs$color[Promoter_RPKMs$SYMBOL %in% mygenes] <- "MyGenes"
+
+
+Promoter_RPKMs$Ctl_avg <-  rowSums(Promoter_RPKMs[,c(2,3,6,7)], na.rm = FALSE, dims = 1)/4
+Promoter_RPKMs$KCL_avg <- rowSums(Promoter_RPKMs[,c(8,9,12,13)], na.rm = FALSE, dims = 1)/4
+Promoter_RPKMs$TTX_avg <- rowSums(Promoter_RPKMs[,c(4,5,10,11)], na.rm = FALSE, dims = 1)/4
+Promoter_RPKMs$delta_TTX <- abs(Promoter_RPKMs$TTX_avg - Promoter_RPKMs$Ctl_avg)
+Promoter_RPKMs$delta_KCL <- abs(Promoter_RPKMs$KCL_avg - Promoter_RPKMs$Ctl_avg)
+
+Promoter_RPKMs_TTX <- Promoter_RPKMs[,c(1,14,17)]
+Promoter_RPKMs_KCL <- Promoter_RPKMs[,c(1,14,16)]
+Promoter_RPKMs_CTL <- Promoter_RPKMs[,c(1,14,15)]
+Promoter_RPKMs_deltaTTX <- Promoter_RPKMs[,c(1,14,18)]
+Promoter_RPKMs_deltaKCL <- Promoter_RPKMs[,c(1,14,19)]
+
+ggplot(Promoter_RPKMs_TTX, aes(x=color, y=TTX_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs w TTX")
+
+ggplot(Promoter_RPKMs_KCL, aes(x=color, y=KCL_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs w KCL")
+
+ggplot(Promoter_RPKMs_CTL, aes(x=color, y=Ctl_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs Basal")
+
+ggplot(Promoter_RPKMs_deltaTTX, aes(x=color, y=delta_TTX)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color))  + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs change with TTX")
+
+ggplot(Promoter_RPKMs_deltaKCL, aes(x=color, y=delta_KCL)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs change with KCL")
+
+####
+
+
+rpkm_test2 <- peakanno_rpkm_df
+
+rpkm_test2$color <- "Other"
+rpkm_test2$color[rpkm_test2$SYMBOL %in% mygenes] <- "MyGenes"
+
+
+
+library(dplyr)
+
+
+test3 <- rpkm_test2[,c(6:17,28)]
+
+Gene_RPKMs <- test3 %>%
+group_by(SYMBOL) %>%
+summarise_all(sum)
+
+Gene_RPKMs$color <- "Other"
+Gene_RPKMs$color[Gene_RPKMs$SYMBOL %in% mygenes] <- "MyGenes"
+
+
+Gene_RPKMs$Ctl_avg <-  rowSums(Gene_RPKMs[,c(2,3,6,7)], na.rm = FALSE, dims = 1)/4
+Gene_RPKMs$KCL_avg <- rowSums(Gene_RPKMs[,c(8,9,12,13)], na.rm = FALSE, dims = 1)/4
+Gene_RPKMs$TTX_avg <- rowSums(Gene_RPKMs[,c(4,5,10,11)], na.rm = FALSE, dims = 1)/4
+Gene_RPKMs$delta_TTX <- abs(Gene_RPKMs$TTX_avg - Gene_RPKMs$Ctl_avg)
+Gene_RPKMs$delta_KCL <- abs(Gene_RPKMs$KCL_avg - Gene_RPKMs$Ctl_avg)
+
+Gene_RPKM_TTX <- Gene_RPKMs[,c(1,14,17)]
+Gene_RPKM_KCL <- Gene_RPKMs[,c(1,14,16)]
+Gene_RPKM_CTL <- Gene_RPKMs[,c(1,14,15)]
+Gene_RPKMs_deltaTTX <- Gene_RPKMs[,c(1,14,18)]
+Gene_RPKMs_deltaKCL <- Gene_RPKMs[,c(1,14,19)]
+
+ggplot(Gene_RPKM_TTX, aes(x=color, y=TTX_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs w TTX")
+
+ggplot(Gene_RPKM_KCL, aes(x=color, y=KCL_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs w KCL")
+
+ggplot(Gene_RPKM_CTL, aes(x=color, y=Ctl_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs Basal")
+
+ggplot(Gene_RPKMs_deltaTTX, aes(x=color, y=delta_TTX)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color))  + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs change with TTX")
+
+ggplot(Gene_RPKMs_deltaKCL, aes(x=color, y=delta_KCL)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs change with KCL")
+####
 
 activity_rpkm_t <- data.frame(t(Activity_RPKMs))
 
@@ -419,3 +497,156 @@ mdata <- melt(activity_rpkm_t, id=c("Class"))
 
 ggplot(mdata, aes(x=Class, y=value)) + geom_boxplot(aes(x=Class, y=value, fill=Class)) + facet_grid(. ~ variable)  + scale_y_log10() + theme_classic() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 90)) + ylab("RPKM") + stat_compare_means(label = "p.signif", method = "t.test",ref.group = "Ctl")
 ```
+
+```{r}
+mygenes <- c("FOS", "NPAS4", "MALAT1", "ERG", "OLIG2", "NR4A1", "HOMER1", "SFI1", "HDAC2", "HNRNPA2B1", "SIRT1", "BDNF", "ARC", "HIC1", "LINC00473", "ZNF331", "ADRA1B")
+
+
+salmon_tpm_activity_subset <- subset(salmon_tpm_activity, salmon_tpm_activity$Symbol %in% mygenes)
+
+
+library(dplyr)
+
+
+
+Gene_TPMs<- salmon_tpm_activity %>%
+group_by(Symbol) %>%
+summarise_all(sum)
+
+
+
+Gene_TPMs$Ctl_avg <-  rowSums(Gene_TPMs[,c(2,3,8,9)], na.rm = FALSE, dims = 1)/4
+Gene_TPMs$KCL_avg <- rowSums(Gene_TPMs[,c(4,5,10,11)], na.rm = FALSE, dims = 1)/4
+Gene_TPMs$TTX_avg <- rowSums(Gene_TPMs[,c(6,7,12,13)], na.rm = FALSE, dims = 1)/4
+Gene_TPMs$delta_TTX <- abs(Gene_TPMs$TTX_avg - Gene_TPMs$Ctl_avg)
+Gene_TPMs$delta_KCL <- abs(Gene_TPMs$KCL_avg - Gene_TPMs$Ctl_avg)
+
+Gene_TPMs$color <- "Other"
+Gene_TPMs$color[Gene_TPMs$Symbol %in% mygenes] <- "MyGenes"
+
+Gene_TPMs_TTX <- Gene_TPMs[,c(1,16,19)]
+Gene_TPMs_TTX_subset <- subset(Gene_TPMs_TTX, Gene_TPMs_TTX$TTX_avg >= 2)
+
+
+Gene_TPMs_KCL <- Gene_TPMs[,c(1,15,19)]
+Gene_TPMs_KCL_subset <- subset(Gene_TPMs_KCL, Gene_TPMs_KCL$KCL_avg >= 2)
+
+Gene_TPMs_CTL <- Gene_TPMs[,c(1,14,19)]
+Gene_TPMs_CTL_subset <- subset(Gene_TPMs_CTL, Gene_TPMs_CTL$Ctl_avg >= 2)
+
+Gene_TPMs_deltaTTX <- Gene_TPMs[,c(1,14,17,19)]
+Gene_TPMs_deltaTTX_subset <- subset(Gene_TPMs_deltaTTX, Gene_TPMs_deltaTTX$Ctl_avg >= 2)
+
+Gene_TPMs_deltaKCL <- Gene_TPMs[,c(1,14,18,19)]
+Gene_TPMs_deltaKCL_subset <- subset(Gene_TPMs_deltaKCL, Gene_TPMs_deltaKCL$Ctl_avg >= 2)
+
+
+ggplot(Gene_TPMs_TTX_subset, aes(x=color, y=TTX_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Salmon TPMs w TTX")
+
+ggplot(Gene_TPMs_KCL_subset, aes(x=color, y=KCL_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Salmon TPMs w KCL")
+
+ggplot(Gene_TPMs_CTL_subset, aes(x=color, y=Ctl_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Salmon TPMs w Basal")
+
+ggplot(Gene_TPMs_deltaTTX_subset, aes(x=color, y=delta_TTX)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color))  + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Salmon TPMs change with TTX") + scale_y_log10()
+
+ggplot(Gene_TPMs_deltaKCL_subset, aes(x=color, y=delta_KCL)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Salmon TPMs change with KCL") + scale_y_log10()
+
+
+
+
+rownames(Gene_TPMs) <- Gene_TPMs$Symbol
+
+activity_rpkm_t <- data.frame(t(Gene_TPMs[,-1]))
+
+activity_rpkm_t$Class <- "bg"
+activity_rpkm_t$Class[c(1,2,7,8)] <- "Ctl"
+activity_rpkm_t$Class[c(5,6,11,12)] <- "TTX"
+activity_rpkm_t$Class[c(3,4,9,10)] <- "KCl"
+mdata <- melt(activity_rpkm_t, id=c("Class"))
+#mdata2 <- mdata[mdata$Class != "KCL PKi",]
+
+activity_rpkm_t_new <- activity_rpkm_t[activity_rpkm_t$Class !="KCL PKi",]
+
+ggplot(mdata, aes(x=Class, y=value)) + geom_boxplot(aes(x=Class, y=value, fill=Class)) + facet_grid(. ~ variable)  + scale_y_log10() + theme_classic() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 90)) + ylab("RPKM") + stat_compare_means(label = "p.signif", method = "t.test",ref.group = "Ctl")
+
+Promoter_RPKMs_TTX <- Promoter_RPKMs[,c(1,14,17)]
+Promoter_RPKMs_KCL <- Promoter_RPKMs[,c(1,14,16)]
+Promoter_RPKMs_CTL <- Promoter_RPKMs[,c(1,14,15)]
+Promoter_RPKMs_deltaTTX <- Promoter_RPKMs[,c(1,14,18)]
+Promoter_RPKMs_deltaKCL <- Promoter_RPKMs[,c(1,14,19)]
+
+ggplot(Promoter_RPKMs_TTX, aes(x=color, y=TTX_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs w TTX")
+
+ggplot(Promoter_RPKMs_KCL, aes(x=color, y=KCL_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs w KCL")
+
+ggplot(Promoter_RPKMs_CTL, aes(x=color, y=Ctl_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs Basal")
+
+ggplot(Promoter_RPKMs_deltaTTX, aes(x=color, y=delta_TTX)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color))  + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs change with TTX")
+
+ggplot(Promoter_RPKMs_deltaKCL, aes(x=color, y=delta_KCL)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Promoter RPKMs change with KCL")
+
+####
+
+
+rpkm_test2 <- peakanno_rpkm_df
+
+rpkm_test2$color <- "Other"
+rpkm_test2$color[rpkm_test2$SYMBOL %in% mygenes] <- "MyGenes"
+
+
+
+library(dplyr)
+
+
+test3 <- rpkm_test2[,c(6:17,28)]
+
+Gene_RPKMs <- test3 %>%
+group_by(SYMBOL) %>%
+summarise_all(sum)
+
+Gene_RPKMs$color <- "Other"
+Gene_RPKMs$color[Gene_RPKMs$SYMBOL %in% mygenes] <- "MyGenes"
+
+
+Gene_RPKMs$Ctl_avg <-  rowSums(Gene_RPKMs[,c(2,3,6,7)], na.rm = FALSE, dims = 1)/4
+Gene_RPKMs$KCL_avg <- rowSums(Gene_RPKMs[,c(8,9,12,13)], na.rm = FALSE, dims = 1)/4
+Gene_RPKMs$TTX_avg <- rowSums(Gene_RPKMs[,c(4,5,10,11)], na.rm = FALSE, dims = 1)/4
+Gene_RPKMs$delta_TTX <- abs(Gene_RPKMs$TTX_avg - Gene_RPKMs$Ctl_avg)
+Gene_RPKMs$delta_KCL <- abs(Gene_RPKMs$KCL_avg - Gene_RPKMs$Ctl_avg)
+
+Gene_RPKM_TTX <- Gene_RPKMs[,c(1,14,17)]
+Gene_RPKM_KCL <- Gene_RPKMs[,c(1,14,16)]
+Gene_RPKM_CTL <- Gene_RPKMs[,c(1,14,15)]
+Gene_RPKMs_deltaTTX <- Gene_RPKMs[,c(1,14,18)]
+Gene_RPKMs_deltaKCL <- Gene_RPKMs[,c(1,14,19)]
+
+ggplot(Gene_RPKM_TTX, aes(x=color, y=TTX_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs w TTX")
+
+ggplot(Gene_RPKM_KCL, aes(x=color, y=KCL_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs w KCL")
+
+ggplot(Gene_RPKM_CTL, aes(x=color, y=Ctl_avg)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + scale_y_log10() + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs Basal")
+
+ggplot(Gene_RPKMs_deltaTTX, aes(x=color, y=delta_TTX)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color))  + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs change with TTX")
+
+ggplot(Gene_RPKMs_deltaKCL, aes(x=color, y=delta_KCL)) + geom_boxplot() + geom_jitter(position = position_jitter(0.2), aes(colour = color)) + stat_compare_means(label = "p.signif", method = "t.test") + theme_classic() + ggtitle("Gene RPKMs change with KCL")
+####
+
+activity_rpkm_t <- data.frame(t(Activity_RPKMs))
+
+Act_RPKM <- Activity_RPKMs[,-1]
+
+rownames(Act_RPKM) <- Activity_RPKMs$SYMBOL
+View(Act_RPKM)
+
+activity_rpkm_t <- data.frame(t(Act_RPKM))
+
+activity_rpkm_t$Class <- "bg"
+activity_rpkm_t$Class[c(1,2,5,6)] <- "Ctl"
+activity_rpkm_t$Class[c(3,4,9,10)] <- "TTX"
+activity_rpkm_t$Class[c(7,8,11,12)] <- "KCl"
+mdata <- melt(activity_rpkm_t, id=c("Class"))
+#mdata2 <- mdata[mdata$Class != "KCL PKi",]
+
+activity_rpkm_t_new <- activity_rpkm_t[activity_rpkm_t$Class !="KCL PKi",]
+
+ggplot(mdata, aes(x=Class, y=value)) + geom_boxplot(aes(x=Class, y=value, fill=Class)) + facet_grid(. ~ variable)  + scale_y_log10() + theme_classic() + theme(legend.position = "none") + theme(axis.text.x = element_text(angle = 90)) + ylab("RPKM") + stat_compare_means(label = "p.signif", method = "t.test",ref.group = "Ctl")

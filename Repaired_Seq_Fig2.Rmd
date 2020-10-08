@@ -11,9 +11,7 @@ params:
 library("DiffBind")
 library("ChIPpeakAnno")
 library("ChIPseeker")
-library("pqsfinder")
 library("motifRG")
-library("BSgenome.Hsapiens.UCSC.hg38")
 library("EnsDb.Hsapiens.v86")
 library("TxDb.Hsapiens.UCSC.hg38.knownGene")
 library("clusterProfiler")
@@ -109,24 +107,27 @@ RNA_TPM_H1H9 <- RNA_tpm_df[,c(1,4,5,10)]
 RNA_TPM_H1H9$ENSEMBL <- rownames(RNA_TPM_H1H9)
 RNA_TPM_H1H9$avg_RNA_TPM <- rowMeans(RNA_TPM_H1H9[c('H9UNG_A', 'H9UNG_B','H9UNG_A', 'H9UNG_B')], na.rm=FALSE)
 
+load("tpm.rda")
+
+gro_tpm_df <- as.data.frame(tpm)
+gro_tpm_df$ENSEMBL <- rownames(gro_tpm_df)
+gro_tpm_df$avg_RNA_TPM <- rowMeans(gro_tpm_df[c('H9UNG_GroSeq_A', 'H9UNG_GroSeq_B','H1UNG_GroSeq_A', 'H1UNG_GroSeq_B')], na.rm=FALSE)
+
+
 H1H9_1D_Data_All <- merge(RNA_TPM_H1H9, H1H91D_ALL, by.x="ENSEMBL", by.y ="Var1", all=TRUE)
 H1H9_1D_Data_All_Genic <- merge(RNA_TPM_H1H9, H1H91D_genic, by.x="ENSEMBL", by.y ="Var1", all=TRUE)
+
+H1H9_1D_Data_All_gro <- merge(gro_tpm_df, H1H91D_ALL, by.x="ENSEMBL", by.y ="Var1", all=TRUE)
+H1H9_1D_Data_All__gro_Genic <- merge(gro_tpm_df, H1H91D_genic, by.x="ENSEMBL", by.y ="Var1", all=TRUE)
 
 
 H1H9_1D_Data_All$repairTPM[is.na(H1H9_1D_Data_All$repairTPM)] <- 0
 H1H9_1D_Data_All_Genic$repairTPM[is.na(H1H9_1D_Data_All_Genic$repairTPM)] <- 0
-
+H1H9_1D_Data_All_gro$repairTPM[is.na(H1H9_1D_Data_All_gro$repairTPM)] <- 0
+H1H9_1D_Data_All__gro_Genic$repairTPM[is.na(H1H9_1D_Data_All__gro_Genic$repairTPM)] <- 0
 
 H1H9_1D_Data_All$Class[H1H9_1D_Data_All$repairTPM > 0] <- "Genes_w_Repair"
 H1H9_1D_Data_All$Class[H1H9_1D_Data_All$repairTPM == 0] <- "Genes_wo_Repair"
-
-CE Repair ATAC Shuffle sSNV
-
-CE-Repair
-CE_ATAC
-CE_Shuffle
-CE-sSNV
-
 
 
 H1H9_1D_Data_All$Class2[H1H9_1D_Data_All$avg_RNA_TPM > 0 & H1H9_1D_Data_All$repairTPM> 0] <- "Active"
@@ -149,9 +150,7 @@ OUT <- merge(H1H9_1D_Data_All,G_list_a,by.x="ENSEMBL",by.y="ensembl_gene_id")
 OUT_genic <- merge(H1H9_1D_Data_All_Genic,G_list_genic,by.x="ENSEMBL",by.y="ensembl_gene_id")
 
 
-OUT$gene_biotype[OUT$gene_biotype %like% "IG%"] <- "IG"
-OUT$gene_biotype[OUT$gene_biotype %like% "TR%"] <- "TR"
-OUT$gene_biotype[OUT$gene_biotype %like% "%pseudogene"] <- "pseudogene"
+
 
 OUT_Filtered <- OUT %>% filter(str_detect(gene_biotype, 'protein_coding'))
 
@@ -161,10 +160,33 @@ OUT_genic$gene_biotype[OUT_genic$gene_biotype %like% "%pseudogene"] <- "pseudoge
 
 OUT_genic_Filtered <- OUT_genic %>% filter(str_detect(gene_biotype, 'protein_coding'))
 
+OUT_gro <- merge(H1H9_1D_Data_All_gro,G_list_a,by.x="ENSEMBL",by.y="ensembl_gene_id")
+OUT_gro_genic <- merge(H1H9_1D_Data_All__gro_Genic,G_list_genic,by.x="ENSEMBL",by.y="ensembl_gene_id")
+
+
+OUT$gene_biotype[OUT$gene_biotype %like% "IG%"] <- "IG"
+OUT$gene_biotype[OUT$gene_biotype %like% "TR%"] <- "TR"
+OUT$gene_biotype[OUT$gene_biotype %like% "%pseudogene"] <- "pseudogene"
+
+OUT_gro_Filtered <- OUT_gro %>% filter(str_detect(gene_biotype, 'protein_coding'))
+
+OUT_genic$gene_biotype[OUT_genic$gene_biotype %like% "IG%"] <- "IG"
+OUT_genic$gene_biotype[OUT_genic$gene_biotype %like% "TR%"] <- "TR"
+OUT_genic$gene_biotype[OUT_genic$gene_biotype %like% "%pseudogene"] <- "pseudogene"
+
+OUT_gro_genic_Filtered <- OUT_gro_genic %>% filter(str_detect(gene_biotype, 'protein_coding'))
+
+
+ggplot(OUT_gro_Filtered, aes(x=avg_RNA_TPM +.0001, y=repairTPM+.0001)) +
+geom_point(alpha = .2, size=1, shape=16)+
+xlab("Gro TPMs")+
+ylab("Peak Repair TPMs")+
+theme_classic()  + theme(panel.border = element_rect(colour = "black", fill=NA, size=.5)) + scale_color_manual(values=c("#662d91")) + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) + stat_poly_eq(formula = my.formula, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + geom_smooth(method = "lm", se = FALSE) 
+
 
 Gene_Data <- data.frame(G_list_a)
 #pdf("H1H9_1D_Common_Peak_TPMs_vs_RNA_TPMs.pdf", paper="USr")
-dplyr::filter(H1H9_All_Filtered, !is.na(Class.Peaks)) %>% ggplot(aes(x=avg_RNA_TPM.Salmon+.0001, y=repairTPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
+dplyr::filter(OUT_Filtered, !is.na(Class.Peaks)) %>% ggplot(aes(x=avg_RNA_TPM+.0001, y=repairTPM + .0001))  + scale_x_log10(limits = c(-1,1e5)) + scale_y_log10(limits = c(-1,1e5)) +
 geom_point(alpha = .2, size=1, shape=16, aes(colour=Class.Peaks)) +
 xlab("expression TPMs")+
 ylab("Repair TPMs")+
